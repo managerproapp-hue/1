@@ -40,3 +40,10 @@ export interface Goal {
   targetAmount: number;
   linkedCategory: string;
 }
+
+export interface Account {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber?: string;
+}

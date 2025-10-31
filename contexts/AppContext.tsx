@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, FC } from 'react';
-import { Transaction, Goal } from '../types';
+import { Transaction, Goal, Account } from '../types';
 
 const INITIAL_EXPENSE_CATEGORIES = [
   'Sin Categorizar', 'Gastos niñas', 'Supermercados', 'Gasolina', 'Seguros', 'Ropa / Otros', 'Teléfono / Internet', 'TV de Pago', 'Agua', 'Manutención', 'Prestamos', 'Luz', 'Mascotas', 'Ayuntamiento', 'Ahorros', 'Vivienda', 'Transporte', 'Comida',
@@ -20,6 +20,10 @@ interface AppContextType {
     handleAddGoal: (goal: Omit<Goal, 'id'>) => void;
     handleUpdateGoal: (goal: Goal) => void;
     handleDeleteGoal: (id: string) => void;
+    accounts: Account[];
+    handleAddAccount: (account: Omit<Account, 'id'>) => void;
+    handleUpdateAccount: (account: Account) => void;
+    handleDeleteAccount: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -27,10 +31,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [expenseCategories, setExpenseCategories] = useState<string[]>(INITIAL_EXPENSE_CATEGORIES);
-    const [goals, setGoals] = useState<Goal[]>([
-        { id: 'goal-1', name: 'Fondo de Emergencia', targetAmount: 3000, linkedCategory: 'Ahorros' },
-        { id: 'goal-2', name: 'Vacaciones Verano 2025', targetAmount: 1500, linkedCategory: 'Ahorros' },
-    ]);
+    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [goals, setGoals] = useState<Goal[]>([]);
 
     const handleConfirmImport = (newTransactions: Transaction[]) => {
         setAllTransactions(prev => [...prev, ...newTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -57,8 +59,8 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     };
 
     const handleDownloadBackup = () => {
-        if (allTransactions.length === 0) {
-            alert("No hay transacciones para exportar.");
+        if (allTransactions.length === 0 && accounts.length === 0 && goals.length === 0) {
+            alert("No hay datos para exportar.");
             return;
         }
         const backupData = {
@@ -66,6 +68,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             transactions: allTransactions,
             categories: expenseCategories,
             goals: goals,
+            accounts: accounts,
         };
         const dataStr = JSON.stringify(backupData, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -84,12 +87,16 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         reader.onload = (event) => {
             try {
                 const data = JSON.parse(event.target?.result as string);
-                const transactionsToLoad = (data.transactions || data).map((tx: any) => ({ ...tx, date: new Date(tx.date) }));
+                const transactionsToLoad = (data.transactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) }));
                 const categoriesToLoad = data.categories || INITIAL_EXPENSE_CATEGORIES;
                 const goalsToLoad = data.goals || [];
+                const accountsToLoad = data.accounts || [];
+
                 setAllTransactions(transactionsToLoad);
                 setExpenseCategories(categoriesToLoad);
                 setGoals(goalsToLoad);
+                setAccounts(accountsToLoad);
+
                 alert(`Copia de seguridad restaurada. Última actualización: ${new Date(data.lastUpdated || Date.now()).toLocaleString()}`);
                 callback(); // Navigate back to dashboard on success
             } catch (error) {
@@ -132,6 +139,19 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setGoals(prev => prev.filter(g => g.id !== id));
     };
 
+    const handleAddAccount = (accountData: Omit<Account, 'id'>) => {
+        const newAccount: Account = { ...accountData, id: crypto.randomUUID() };
+        setAccounts(prev => [...prev, newAccount]);
+    };
+
+    const handleUpdateAccount = (updatedAccount: Account) => {
+        setAccounts(prev => prev.map(a => a.id === updatedAccount.id ? updatedAccount : a));
+    };
+
+    const handleDeleteAccount = (id: string) => {
+        setAccounts(prev => prev.filter(a => a.id !== id));
+    };
+
     const value = {
         allTransactions,
         expenseCategories,
@@ -147,6 +167,10 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         handleAddGoal,
         handleUpdateGoal,
         handleDeleteGoal,
+        accounts,
+        handleAddAccount,
+        handleUpdateAccount,
+        handleDeleteAccount,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,10 +1,10 @@
 import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { SpinnerIcon } from './icons';
 import { useAppContext } from '../contexts/AppContext';
+import Import from './Import'; // Importación directa
 
 // Carga perezosa de componentes para un mejor rendimiento inicial
 const Dashboard = lazy(() => import('./Dashboard'));
-const Import = lazy(() => import('./Import'));
 const DatabaseView = lazy(() => import('./views/DatabaseView'));
 const BackupView = lazy(() => import('./views/BackupView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));

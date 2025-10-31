@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Transaction, TransactionType, StagedTransaction, ProcessingError } from '../types';
@@ -13,13 +12,13 @@ interface ImportProps {
 }
 
 const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
-  const { expenseCategories, allTransactions, handleConfirmImport } = useAppContext();
+  const { expenseCategories, allTransactions, handleConfirmImport, accounts } = useAppContext();
 
   const [ai, setAi] = useState<GoogleGenAI | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   
   const [files, setFiles] = useState<FileList | null>(null);
-  const [source, setSource] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState('');
   const [context, setContext] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
@@ -27,7 +26,6 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
   const [processingErrors, setProcessingErrors] = useState<ProcessingError[]>([]);
   
   useEffect(() => {
-    // Retraso mínimo para asegurar que las variables de entorno se carguen
     setTimeout(() => {
       const apiKey = process.env.API_KEY;
       if (!apiKey) {
@@ -44,12 +42,12 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
     }, 100);
   }, []);
 
-  const isReadyToAnalyze = useMemo(() => files && files.length > 0 && source.trim() !== '' && !!ai, [files, source, ai]);
+  const isReadyToAnalyze = useMemo(() => files && files.length > 0 && selectedAccountId !== '' && !!ai, [files, selectedAccountId, ai]);
   const isReviewing = useMemo(() => stagedTransactions.length > 0 || processingErrors.length > 0, [stagedTransactions, processingErrors]);
 
   const resetState = () => {
     setFiles(null);
-    setSource('');
+    setSelectedAccountId('');
     setContext('');
     setIsLoading(false);
     setProgressMessage('');
@@ -104,6 +102,7 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
     setIsLoading(true);
     let allProcessed: StagedTransaction[] = [];
     let allErrors: ProcessingError[] = [];
+    const sourceName = accounts.find(acc => acc.id === selectedAccountId)?.accountName || 'Desconocida';
 
     for (let i = 0; i < files!.length; i++) {
         const file = files![i];
@@ -176,7 +175,7 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
                     id: crypto.randomUUID(),
                     isValid: true,
                     amount: Math.abs(t.amount),
-                    source,
+                    source: sourceName,
                 }));
                 allProcessed = [...allProcessed, ...newProcessed];
             }
@@ -306,8 +305,14 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
 
         <div className="space-y-4">
             <div>
-                <label htmlFor="source" className="block text-sm font-medium text-gray-300 mb-1">Fuente (Obligatorio)</label>
-                <input type="text" id="source" value={source} onChange={(e) => setSource(e.target.value)} placeholder="Ej: BBVA, Santander, Tarjeta de Crédito" className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500" />
+                <label htmlFor="account" className="block text-sm font-medium text-gray-300 mb-1">Cuenta (Obligatorio)</label>
+                <select id="account" value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500">
+                    <option value="" disabled>Selecciona una cuenta</option>
+                    {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.accountName} ({acc.bankName})</option>
+                    ))}
+                </select>
+                {accounts.length === 0 && <p className="text-xs text-yellow-400 mt-1">No has añadido ninguna cuenta. Ve a Configuración para empezar.</p>}
             </div>
             <div>
                 <label htmlFor="context" className="block text-sm font-medium text-gray-300 mb-1">Contexto Adicional (Opcional)</label>
