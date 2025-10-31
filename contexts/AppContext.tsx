@@ -1,9 +1,18 @@
-import React, { createContext, useState, useContext, ReactNode, FC } from 'react';
+import React, { createContext, useState, useContext, ReactNode, FC, useEffect } from 'react';
 import { Transaction, Goal, Account } from '../types';
+
+const STORAGE_KEY = 'budget-app-data';
 
 const INITIAL_EXPENSE_CATEGORIES = [
   'Sin Categorizar', 'Gastos niñas', 'Supermercados', 'Gasolina', 'Seguros', 'Ropa / Otros', 'Teléfono / Internet', 'TV de Pago', 'Agua', 'Manutención', 'Prestamos', 'Luz', 'Mascotas', 'Ayuntamiento', 'Ahorros', 'Vivienda', 'Transporte', 'Comida',
 ];
+
+interface AppState {
+    allTransactions: Transaction[];
+    expenseCategories: string[];
+    goals: Goal[];
+    accounts: Account[];
+}
 
 interface AppContextType {
     allTransactions: Transaction[];
@@ -29,11 +38,56 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const loadInitialState = (): AppState => {
+    try {
+        const serializedState = localStorage.getItem(STORAGE_KEY);
+        if (serializedState === null) {
+            return {
+                allTransactions: [],
+                expenseCategories: INITIAL_EXPENSE_CATEGORIES,
+                goals: [],
+                accounts: [],
+            };
+        }
+        const storedState = JSON.parse(serializedState);
+        return {
+            allTransactions: (storedState.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) })),
+            expenseCategories: storedState.expenseCategories || INITIAL_EXPENSE_CATEGORIES,
+            goals: storedState.goals || [],
+            accounts: storedState.accounts || [],
+        };
+    } catch (error) {
+        console.error("Could not load state from localStorage", error);
+        return {
+            allTransactions: [],
+            expenseCategories: INITIAL_EXPENSE_CATEGORIES,
+            goals: [],
+            accounts: [],
+        };
+    }
+};
+
 export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
-    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-    const [expenseCategories, setExpenseCategories] = useState<string[]>(INITIAL_EXPENSE_CATEGORIES);
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [goals, setGoals] = useState<Goal[]>([]);
+    const initialState = loadInitialState();
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>(initialState.allTransactions);
+    const [expenseCategories, setExpenseCategories] = useState<string[]>(initialState.expenseCategories);
+    const [accounts, setAccounts] = useState<Account[]>(initialState.accounts);
+    const [goals, setGoals] = useState<Goal[]>(initialState.goals);
+
+    useEffect(() => {
+        try {
+            const stateToSave = {
+                allTransactions,
+                expenseCategories,
+                goals,
+                accounts,
+            };
+            const serializedState = JSON.stringify(stateToSave);
+            localStorage.setItem(STORAGE_KEY, serializedState);
+        } catch (error) {
+            console.error("Could not save state to localStorage", error);
+        }
+    }, [allTransactions, expenseCategories, goals, accounts]);
 
     const handleConfirmImport = (newTransactions: Transaction[]) => {
         setAllTransactions(prev => [...prev, ...newTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -121,7 +175,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 setAccounts(accountsToLoad);
 
                 alert(`Copia de seguridad restaurada. Última actualización: ${new Date(data.lastUpdated || Date.now()).toLocaleString()}`);
-                callback(); // Navigate back to dashboard on success
+                callback(); 
             } catch (error) {
                 console.error("Backup restore error:", error);
                 alert("Error al procesar el archivo de copia de seguridad.");
