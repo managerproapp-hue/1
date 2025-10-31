@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Transaction, TransactionType, StagedTransaction, ProcessingError } from '../types';
 import { UploadCloudIcon, FileIcon, SpinnerIcon, SparklesIcon } from './icons';
@@ -12,11 +12,12 @@ interface ImportProps {
   setActiveTab: (tab: 'dashboard' | 'importar' | 'base' | 'backup' | 'settings') => void;
 }
 
-// Mueve la clave de API a una constante para verificarla primero.
-const apiKey = process.env.API_KEY;
-
 const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
   const { expenseCategories, allTransactions, handleConfirmImport } = useAppContext();
+
+  const [ai, setAi] = useState<GoogleGenAI | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
+  
   const [files, setFiles] = useState<FileList | null>(null);
   const [source, setSource] = useState('');
   const [context, setContext] = useState('');
@@ -24,26 +25,26 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
   const [progressMessage, setProgressMessage] = useState('');
   const [stagedTransactions, setStagedTransactions] = useState<StagedTransaction[]>([]);
   const [processingErrors, setProcessingErrors] = useState<ProcessingError[]>([]);
-
-  // Si la clave de API no está configurada, muestra un error claro.
-  if (!apiKey) {
-    return (
-        <div className="bg-rose-900/50 border border-rose-700 p-6 rounded-xl text-center max-w-2xl mx-auto">
-            <h2 className="text-2xl font-semibold text-rose-300 mb-2">Error de Configuración</h2>
-            <p className="text-rose-200">
-                La clave de API de Google AI no está configurada. Por favor, asegúrate de que la variable de entorno 
-                <code className="bg-slate-700 text-white px-2 py-1 rounded-md mx-1 font-mono">API_KEY</code> 
-                esté definida en la configuración de tu proyecto en Vercel.
-            </p>
-        </div>
-    );
-  }
   
-  // Inicializa la IA solo si la clave existe.
-  const ai = new GoogleGenAI({ apiKey });
+  useEffect(() => {
+    // Retraso mínimo para asegurar que las variables de entorno se carguen
+    setTimeout(() => {
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) {
+        setInitError('La clave de API de Google AI no está configurada.');
+      } else {
+        try {
+          const genAI = new GoogleGenAI({ apiKey });
+          setAi(genAI);
+        } catch (e) {
+          console.error("Error initializing GoogleGenAI:", e);
+          setInitError("Ocurrió un error al inicializar la API de IA. Revisa la consola para más detalles.");
+        }
+      }
+    }, 100);
+  }, []);
 
-
-  const isReadyToAnalyze = useMemo(() => files && files.length > 0 && source.trim() !== '', [files, source]);
+  const isReadyToAnalyze = useMemo(() => files && files.length > 0 && source.trim() !== '' && !!ai, [files, source, ai]);
   const isReviewing = useMemo(() => stagedTransactions.length > 0 || processingErrors.length > 0, [stagedTransactions, processingErrors]);
 
   const resetState = () => {
@@ -98,7 +99,7 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
   };
 
   const handleAnalyze = async () => {
-    if (!isReadyToAnalyze) return;
+    if (!isReadyToAnalyze || !ai) return;
 
     setIsLoading(true);
     let allProcessed: StagedTransaction[] = [];
@@ -215,6 +216,28 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
     setActiveTab('base');
   };
 
+  if (initError) {
+    return (
+        <div className="bg-rose-900/50 border border-rose-700 p-6 rounded-xl text-center max-w-2xl mx-auto">
+            <h2 className="text-2xl font-semibold text-rose-300 mb-2">Error de Configuración</h2>
+            <p className="text-rose-200">
+                {initError} Por favor, asegúrate de que la variable de entorno 
+                <code className="bg-slate-700 text-white px-2 py-1 rounded-md mx-1 font-mono">API_KEY</code> 
+                esté definida en la configuración de tu proyecto en Vercel.
+            </p>
+        </div>
+    );
+  }
+
+  if (!ai) {
+    return (
+        <div className="flex flex-col items-center justify-center text-center p-10 bg-slate-800 rounded-xl">
+            <SpinnerIcon className="w-16 h-16 text-violet-400 animate-spin mb-4" />
+            <h2 className="text-2xl font-semibold mb-2">Inicializando Módulo de IA...</h2>
+        </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center text-center p-10 bg-slate-800 rounded-xl">
@@ -306,7 +329,6 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
                 </div>
                 {files && files.length > 0 && (
                     <div className="mt-3 space-y-2">
-                        {/* FIX: Explicitly type the 'file' parameter to resolve 'unknown' type error. */}
                         {Array.from(files).map((file: File) => (
                             <div key={file.name} className="flex items-center text-sm bg-slate-700 p-2 rounded-md">
                                 <FileIcon className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0" />
