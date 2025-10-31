@@ -274,11 +274,31 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     };
 
     const handleUpdateAccount = (updatedAccount: Account) => {
+        const oldAccount = accounts.find(a => a.id === updatedAccount.id);
+        if (oldAccount && oldAccount.accountName !== updatedAccount.accountName) {
+            setAllTransactions(prev => 
+                prev.map(t => 
+                    t.source === oldAccount.accountName ? { ...t, source: updatedAccount.accountName } : t
+                )
+            );
+        }
         setAccounts(prev => prev.map(a => a.id === updatedAccount.id ? updatedAccount : a));
+        alert(`Cuenta "${oldAccount?.accountName || updatedAccount.accountName}" actualizada.`);
     };
 
     const handleDeleteAccount = (id: string) => {
-        setAccounts(prev => prev.filter(a => a.id !== id));
+        const accountToDelete = accounts.find(a => a.id === id);
+        if (!accountToDelete) return;
+    
+        const transactionsInAccount = allTransactions.some(t => t.source === accountToDelete.accountName);
+        if (transactionsInAccount) {
+            alert(`No se puede eliminar la cuenta "${accountToDelete.accountName}" porque tiene transacciones asociadas. Por favor, primero mueva o elimine esas transacciones.`);
+            return;
+        }
+        
+        if (window.confirm(`¿Estás seguro de que quieres eliminar la cuenta "${accountToDelete.accountName}"?`)) {
+            setAccounts(prev => prev.filter(a => a.id !== id));
+        }
     };
 
     const value = {

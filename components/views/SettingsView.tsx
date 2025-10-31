@@ -61,7 +61,10 @@ const SettingsView: React.FC = () => {
     const onDeleteGoal = (id: string, name: string) => { if (window.confirm(`¿Eliminar la meta: "${name}"?`)) handleDeleteGoal(id); };
     const openAddAccountModal = () => { setSelectedAccount(undefined); setIsAccountModalOpen(true); };
     const openEditAccountModal = (account: Account) => { setSelectedAccount(account); setIsAccountModalOpen(true); };
-    const onDeleteAccount = (id: string, name: string) => { if (window.confirm(`¿Eliminar la cuenta: "${name}"?`)) handleDeleteAccount(id); };
+    const onDeleteAccount = (id: string) => {
+        // La confirmación y la lógica ahora están en el contexto
+        handleDeleteAccount(id);
+    };
 
     return (
         <>
@@ -80,7 +83,7 @@ const SettingsView: React.FC = () => {
                                     <div><p>{acc.accountName}</p><p className="text-xs text-gray-400">{acc.bankName} {acc.accountNumber && `- ${acc.accountNumber}`}</p></div>
                                     <div className="flex items-center space-x-3">
                                         <button onClick={() => openEditAccountModal(acc)} className="text-gray-400 hover:text-violet-400" title="Editar"><PencilIcon className="w-4 h-4" /></button>
-                                        <button onClick={() => onDeleteAccount(acc.id, acc.accountName)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => onDeleteAccount(acc.id)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
                                     </div>
                                 </div>
                             )) : <p className="text-center text-gray-500 py-4">No has añadido ninguna cuenta.</p>}
