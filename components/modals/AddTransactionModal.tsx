@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType } from '../../types';
 import { useAppContext } from '../../contexts/AppContext';
 import { XIcon } from '../icons';
@@ -6,49 +6,68 @@ import { XIcon } from '../icons';
 interface AddTransactionModalProps {
     isOpen: boolean;
     onClose: () => void;
+    transactionToEdit?: Transaction;
 }
 
-const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClose }) => {
-    const { expenseCategories, handleAddTransaction } = useAppContext();
+const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClose, transactionToEdit }) => {
+    const { expenseCategories, handleAddTransaction, handleUpdateTransaction } = useAppContext();
+    const isEditMode = !!transactionToEdit;
 
-    const today = new Date().toISOString().split('T')[0];
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
-    const [date, setDate] = useState(today);
+    const [date, setDate] = useState(formatDate(new Date()));
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState<number | ''>('');
     const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
     const [category, setCategory] = useState(expenseCategories[0] || 'Sin Categorizar');
     const [source, setSource] = useState('');
 
+    useEffect(() => {
+        if (isOpen) {
+            if (isEditMode) {
+                setDate(formatDate(new Date(transactionToEdit.date)));
+                setDescription(transactionToEdit.description);
+                setAmount(transactionToEdit.amount);
+                setType(transactionToEdit.type);
+                setCategory(transactionToEdit.category);
+                setSource(transactionToEdit.source || '');
+            } else {
+                setDate(formatDate(new Date()));
+                setDescription('');
+                setAmount('');
+                setType(TransactionType.EXPENSE);
+                setCategory(expenseCategories[0] || 'Sin Categorizar');
+                setSource('');
+            }
+        }
+    }, [isOpen, transactionToEdit, isEditMode, expenseCategories]);
+
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!description || amount === '' || amount <= 0) {
-            alert('Por favor, complete la descripción y el monto.');
+            alert('Por favor, complete la descripción y un monto válido.');
             return;
         }
 
-        const newTransaction: Omit<Transaction, 'id'> = {
+        const transactionData = {
             date: new Date(`${date}T00:00:00`),
             description,
-            amount,
+            amount: amount as number,
             type,
             category: type === TransactionType.INCOME ? 'Ingresos' : category,
             source,
         };
-        handleAddTransaction(newTransaction);
-        handleClose();
-    };
+        
+        if (isEditMode) {
+            handleUpdateTransaction({ ...transactionData, id: transactionToEdit.id });
+        } else {
+            handleAddTransaction(transactionData);
+        }
 
-    const handleClose = () => {
-        // Reset form
-        setDate(today);
-        setDescription('');
-        setAmount('');
-        setType(TransactionType.EXPENSE);
-        setCategory(expenseCategories[0] || 'Sin Categorizar');
-        setSource('');
         onClose();
     };
+
 
     if (!isOpen) return null;
 
@@ -56,8 +75,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4" aria-modal="true" role="dialog">
             <div className="bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg relative border border-slate-700">
                 <div className="flex justify-between items-center p-4 border-b border-slate-700">
-                    <h2 className="text-xl font-semibold">Añadir Nueva Transacción</h2>
-                    <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Cerrar modal">
+                    <h2 className="text-xl font-semibold">{isEditMode ? 'Editar' : 'Añadir Nueva'} Transacción</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Cerrar modal">
                         <XIcon className="w-6 h-6" />
                     </button>
                 </div>
@@ -103,8 +122,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                     </div>
 
                     <div className="flex justify-end space-x-4 pt-4">
-                        <button type="button" onClick={handleClose} className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">Cancelar</button>
-                        <button type="submit" className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Guardar Transacción</button>
+                        <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">Cancelar</button>
+                        <button type="submit" className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">{isEditMode ? 'Guardar Cambios' : 'Guardar Transacción'}</button>
                     </div>
                 </form>
             </div>

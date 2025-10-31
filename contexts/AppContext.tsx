@@ -14,6 +14,8 @@ interface AppContextType {
     handleDownloadBackup: () => void;
     handleRestoreBackup: (file: File, callback: () => void) => void;
     handleAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
+    handleUpdateTransaction: (transaction: Transaction) => void;
+    handleDeleteTransaction: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -95,6 +97,17 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setAllTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     };
 
+    const handleUpdateTransaction = (updatedTransaction: Transaction) => {
+        setAllTransactions(prev =>
+            prev.map(t => (t.id === updatedTransaction.id ? updatedTransaction : t))
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        );
+    };
+
+    const handleDeleteTransaction = (id: string) => {
+        setAllTransactions(prev => prev.filter(t => t.id !== id));
+    };
+
     const value = {
         allTransactions,
         expenseCategories,
@@ -104,6 +117,8 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         handleDownloadBackup,
         handleRestoreBackup,
         handleAddTransaction,
+        handleUpdateTransaction,
+        handleDeleteTransaction,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

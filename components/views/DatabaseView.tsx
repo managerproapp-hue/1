@@ -1,16 +1,40 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction, TransactionType } from '../../types';
-import { PlusCircleIcon, SearchIcon } from '../icons';
+import { PlusCircleIcon, SearchIcon, PencilIcon, TrashIcon } from '../icons';
 import AddTransactionModal from '../modals/AddTransactionModal';
+import { useAppContext } from '../../contexts/AppContext';
 
 interface DatabaseViewProps {
     transactions: Transaction[];
 }
 
 const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
+    const { handleDeleteTransaction } = useAppContext();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchType, setSearchType] = useState<'description' | 'category'>('description');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | undefined>(undefined);
+
+    const handleOpenAddModal = () => {
+        setSelectedTransaction(undefined);
+        setIsModalOpen(true);
+    };
+
+    const handleOpenEditModal = (transaction: Transaction) => {
+        setSelectedTransaction(transaction);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedTransaction(undefined);
+    };
+
+    const onDelete = (id: string, description: string) => {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar la transacción: "${description}"?`)) {
+            handleDeleteTransaction(id);
+        }
+    };
 
     const searchedTransactions = useMemo(() => {
         if (!searchQuery.trim()) return transactions;
@@ -39,7 +63,7 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
                     </div>
                     <div className="flex-grow flex sm:flex-grow-0 items-center justify-end gap-2">
                         <button onClick={() => setSearchQuery('')} className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Limpiar</button>
-                        <button onClick={() => setIsModalOpen(true)} className="flex items-center justify-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        <button onClick={handleOpenAddModal} className="flex items-center justify-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                             <PlusCircleIcon className="w-5 h-5"/>
                             <span>Añadir</span>
                         </button>
@@ -49,7 +73,7 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
                     <table className="w-full text-left">
                         <thead className="border-b border-slate-600 text-sm text-gray-400">
                             <tr>
-                                <th className="p-3">Fecha</th><th className="p-3">Descripción</th><th className="p-3">Fuente</th><th className="p-3">Categoría</th><th className="p-3">Tipo</th><th className="p-3 text-right">Monto</th>
+                                <th className="p-3">Fecha</th><th className="p-3">Descripción</th><th className="p-3">Fuente</th><th className="p-3">Categoría</th><th className="p-3">Tipo</th><th className="p-3 text-right">Monto</th><th className="p-3 text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -62,14 +86,24 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
                                         <td className="p-3">{t.category}</td>
                                         <td className={`p-3 font-medium ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>{t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto'}</td>
                                         <td className={`p-3 text-right font-mono ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>{t.type === TransactionType.INCOME ? '+' : ''}€{t.amount.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-3 text-center">
+                                            <div className="flex justify-center items-center space-x-2">
+                                                <button onClick={() => handleOpenEditModal(t)} className="text-gray-400 hover:text-violet-400 transition-colors" title="Editar">
+                                                    <PencilIcon className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => onDelete(t.id, t.description)} className="text-gray-400 hover:text-rose-500 transition-colors" title="Eliminar">
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))
-                            ) : ( <tr><td colSpan={6} className="text-center p-6 text-gray-400">{searchQuery ? 'No se encontraron resultados.' : 'No hay transacciones para mostrar en este período.'}</td></tr> )}
+                            ) : ( <tr><td colSpan={7} className="text-center p-6 text-gray-400">{searchQuery ? 'No se encontraron resultados.' : 'No hay transacciones para mostrar en este período.'}</td></tr> )}
                         </tbody>
                     </table>
                 </div>
             </div>
-            <AddTransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+            <AddTransactionModal isOpen={isModalOpen} onClose={handleCloseModal} transactionToEdit={selectedTransaction} />
         </>
     );
 };
