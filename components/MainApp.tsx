@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { SpinnerIcon } from './icons';
 import { useAppContext } from '../contexts/AppContext';
-import Import from './Import'; // Importación directa
+import Import from './Import'; // Importación directa del gestor unificado
 
 // Carga perezosa de componentes para un mejor rendimiento inicial
 const Dashboard = lazy(() => import('./Dashboard'));
