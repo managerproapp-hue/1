@@ -12,7 +12,8 @@ interface ImportProps {
   setActiveTab: (tab: 'dashboard' | 'importar' | 'base' | 'backup' | 'settings') => void;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// Mueve la clave de API a una constante para verificarla primero.
+const apiKey = process.env.API_KEY;
 
 const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
   const { expenseCategories, allTransactions, handleConfirmImport } = useAppContext();
@@ -23,6 +24,24 @@ const Import: React.FC<ImportProps> = ({ setActiveTab }) => {
   const [progressMessage, setProgressMessage] = useState('');
   const [stagedTransactions, setStagedTransactions] = useState<StagedTransaction[]>([]);
   const [processingErrors, setProcessingErrors] = useState<ProcessingError[]>([]);
+
+  // Si la clave de API no está configurada, muestra un error claro.
+  if (!apiKey) {
+    return (
+        <div className="bg-rose-900/50 border border-rose-700 p-6 rounded-xl text-center max-w-2xl mx-auto">
+            <h2 className="text-2xl font-semibold text-rose-300 mb-2">Error de Configuración</h2>
+            <p className="text-rose-200">
+                La clave de API de Google AI no está configurada. Por favor, asegúrate de que la variable de entorno 
+                <code className="bg-slate-700 text-white px-2 py-1 rounded-md mx-1 font-mono">API_KEY</code> 
+                esté definida en la configuración de tu proyecto en Vercel.
+            </p>
+        </div>
+    );
+  }
+  
+  // Inicializa la IA solo si la clave existe.
+  const ai = new GoogleGenAI({ apiKey });
+
 
   const isReadyToAnalyze = useMemo(() => files && files.length > 0 && source.trim() !== '', [files, source]);
   const isReviewing = useMemo(() => stagedTransactions.length > 0 || processingErrors.length > 0, [stagedTransactions, processingErrors]);
