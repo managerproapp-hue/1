@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction, TransactionType } from '../../types';
-import { PlusCircleIcon, SearchIcon, PencilIcon, TrashIcon } from '../icons';
+import { PlusCircleIcon, SearchIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 import AddTransactionModal from '../modals/AddTransactionModal';
 import { useAppContext } from '../../contexts/AppContext';
 
@@ -8,12 +8,15 @@ interface DatabaseViewProps {
     transactions: Transaction[];
 }
 
+const ITEMS_PER_PAGE = 15;
+
 const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
     const { handleDeleteTransaction } = useAppContext();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchType, setSearchType] = useState<'description' | 'category'>('description');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | undefined>(undefined);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const handleOpenAddModal = () => {
         setSelectedTransaction(undefined);
@@ -46,6 +49,19 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
         });
     }, [transactions, searchQuery, searchType]);
 
+    // Reset page to 1 when search or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, searchType, transactions]);
+
+    const totalPages = Math.ceil(searchedTransactions.length / ITEMS_PER_PAGE);
+    const paginatedTransactions = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return searchedTransactions.slice(startIndex, endIndex);
+    }, [searchedTransactions, currentPage]);
+
+
     return (
         <>
             <div className="bg-slate-800 p-4 sm:p-6 rounded-xl shadow-lg">
@@ -77,8 +93,8 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
                             </tr>
                         </thead>
                         <tbody>
-                            {searchedTransactions.length > 0 ? (
-                                searchedTransactions.map(t => (
+                            {paginatedTransactions.length > 0 ? (
+                                paginatedTransactions.map(t => (
                                     <tr key={t.id} className="border-b border-slate-700 hover:bg-slate-700/50">
                                         <td className="p-3 whitespace-nowrap">{new Date(t.date).toLocaleDateString()}</td>
                                         <td className="p-3">{t.description}</td>
@@ -102,6 +118,21 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
                         </tbody>
                     </table>
                 </div>
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-700 mt-4">
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="flex items-center gap-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                            <ChevronLeftIcon className="w-4 h-4" />
+                            Anterior
+                        </button>
+                        <span className="text-sm text-gray-400">
+                            Página {currentPage} de {totalPages}
+                        </span>
+                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="flex items-center gap-1 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                            Siguiente
+                            <ChevronRightIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
             </div>
             <AddTransactionModal isOpen={isModalOpen} onClose={handleCloseModal} transactionToEdit={selectedTransaction} />
         </>
