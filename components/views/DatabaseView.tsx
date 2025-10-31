@@ -1,8 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Transaction, TransactionType } from '../../types';
-import { PlusCircleIcon, SearchIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
+import { PlusCircleIcon, SearchIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, FileDownIcon, FileTextIcon, FileSpreadsheetIcon } from '../icons';
 import AddTransactionModal from '../modals/AddTransactionModal';
 import { useAppContext } from '../../contexts/AppContext';
+
+declare var XLSX: any;
+declare var jsPDF: any;
+
 
 interface DatabaseViewProps {
     transactions: Transaction[];
@@ -17,6 +21,8 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | undefined>(undefined);
     const [currentPage, setCurrentPage] = useState(1);
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
 
     const handleOpenAddModal = () => {
         setSelectedTransaction(undefined);
@@ -54,6 +60,16 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
         setCurrentPage(1);
     }, [searchQuery, searchType, transactions]);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setIsExportMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const totalPages = Math.ceil(searchedTransactions.length / ITEMS_PER_PAGE);
     const paginatedTransactions = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -61,6 +77,69 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
         return searchedTransactions.slice(startIndex, endIndex);
     }, [searchedTransactions, currentPage]);
 
+    const exportToCSV = () => {
+        const headers = ['Fecha', 'Descripción', 'Fuente', 'Categoría', 'Tipo', 'Monto'];
+        const rows = searchedTransactions.map(t => [
+            new Date(t.date).toLocaleDateString('es-ES'),
+            `"${t.description.replace(/"/g, '""')}"`, // Handle quotes
+            t.source || 'N/A',
+            t.category,
+            t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
+            t.amount
+        ].join(','));
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "transacciones.csv");
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setIsExportMenuOpen(false);
+    };
+
+    const exportToXLSX = () => {
+        const dataToExport = searchedTransactions.map(t => ({
+            'Fecha': new Date(t.date).toLocaleDateString('es-ES'),
+            'Descripción': t.description,
+            'Fuente': t.source || 'N/A',
+            'Categoría': t.category,
+            'Tipo': t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
+            'Monto': t.amount,
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Transacciones");
+        XLSX.writeFile(workbook, "transacciones.xlsx");
+        setIsExportMenuOpen(false);
+    };
+    
+    const exportToPDF = () => {
+        const doc = new jsPDF.default();
+        const tableColumn = ['Fecha', 'Descripción', 'Fuente', 'Categoría', 'Tipo', 'Monto (€)'];
+        const tableRows: any[] = [];
+
+        searchedTransactions.forEach(t => {
+            const transactionData = [
+                new Date(t.date).toLocaleDateString('es-ES'),
+                t.description,
+                t.source || 'N/A',
+                t.category,
+                t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
+                t.amount.toFixed(2),
+            ];
+            tableRows.push(transactionData);
+        });
+        
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+        });
+        doc.text("Listado de Transacciones", 14, 15);
+        doc.save("transacciones.pdf");
+        setIsExportMenuOpen(false);
+    };
 
     return (
         <>
@@ -79,6 +158,25 @@ const DatabaseView: React.FC<DatabaseViewProps> = ({ transactions }) => {
                     </div>
                     <div className="flex-grow flex sm:flex-grow-0 items-center justify-end gap-2">
                         <button onClick={() => setSearchQuery('')} className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Limpiar</button>
+                        <div className="relative" ref={exportMenuRef}>
+                            <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                <FileDownIcon className="w-5 h-5"/>
+                                <span>Exportar</span>
+                            </button>
+                            {isExportMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-48 bg-slate-700 rounded-md shadow-lg z-10 border border-slate-600">
+                                    <button onClick={exportToCSV} className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-slate-600 rounded-t-md">
+                                        <FileTextIcon className="w-4 h-4" /> Exportar a CSV
+                                    </button>
+                                    <button onClick={exportToXLSX} className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-slate-600">
+                                        <FileSpreadsheetIcon className="w-4 h-4" /> Exportar a Excel
+                                    </button>
+                                    <button onClick={exportToPDF} className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-slate-600 rounded-b-md">
+                                        <FileTextIcon className="w-4 h-4" /> Exportar a PDF
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <button onClick={handleOpenAddModal} className="flex items-center justify-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                             <PlusCircleIcon className="w-5 h-5"/>
                             <span>Añadir</span>
