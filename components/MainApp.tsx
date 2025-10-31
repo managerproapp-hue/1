@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { SpinnerIcon } from './icons';
 import { useAppContext } from '../contexts/AppContext';
@@ -9,33 +8,46 @@ const Dashboard = lazy(() => import('./Dashboard'));
 const DatabaseView = lazy(() => import('./views/DatabaseView'));
 const BackupView = lazy(() => import('./views/BackupView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
+const AccountComparisonView = lazy(() => import('./views/AccountComparisonView'));
 
 
-type ActiveTab = 'dashboard' | 'importar' | 'base' | 'backup' | 'settings';
+type ActiveTab = 'dashboard' | 'importar' | 'base' | 'comparacion' | 'backup' | 'settings';
 
 const TABS: { id: ActiveTab; label: string }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'importar', label: 'Importar Datos' },
     { id: 'base', label: 'Base de Datos' },
+    { id: 'comparacion', label: 'Comparación' },
     { id: 'backup', label: 'Copia de Seguridad' },
     { id: 'settings', label: 'Configuración' },
 ];
 
 const MainApp: React.FC = () => {
-  const { allTransactions } = useAppContext();
+  const { allTransactions, accounts } = useAppContext();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [month, setMonth] = useState<number | 'all'>('all');
+  const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>('all');
   
-  const filteredTransactions = useMemo(() => {
+  const filteredTransactionsByDate = useMemo(() => {
     return allTransactions.filter(t => {
       const transactionYear = new Date(t.date).getFullYear();
       const transactionMonth = new Date(t.date).getMonth();
       if (transactionYear !== year) return false;
       if (month !== 'all' && transactionMonth !== month) return false;
       return true;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
   }, [allTransactions, year, month]);
+
+  const filteredTransactions = useMemo(() => {
+    if (selectedAccountId === 'all') {
+      return filteredTransactionsByDate;
+    }
+    const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
+    if (!selectedAccount) return filteredTransactionsByDate;
+    
+    return filteredTransactionsByDate.filter(t => t.source === selectedAccount.accountName);
+  }, [filteredTransactionsByDate, selectedAccountId, accounts]);
 
   const years = useMemo(() => {
     const transactionYears = Array.from(new Set(allTransactions.map(t => new Date(t.date).getFullYear()))).sort((a, b) => Number(b) - Number(a));
@@ -52,6 +64,8 @@ const MainApp: React.FC = () => {
             return <Import setActiveTab={setActiveTab} />;
         case 'base':
             return <DatabaseView transactions={filteredTransactions} />;
+        case 'comparacion':
+            return <AccountComparisonView transactions={filteredTransactionsByDate} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':
@@ -66,6 +80,8 @@ const MainApp: React.FC = () => {
         <SpinnerIcon className="w-12 h-12 text-violet-400 animate-spin" />
     </div>
   );
+  
+  const showFilters = !['settings', 'importar', 'backup'].includes(activeTab);
 
   return (
     <div className="min-h-screen bg-slate-900 text-gray-200 p-4 sm:p-6 lg:p-8">
@@ -83,17 +99,22 @@ const MainApp: React.FC = () => {
           ))}
         </nav>
         
-        {activeTab !== 'settings' && activeTab !== 'importar' && (
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-            <div className="flex items-center space-x-2">
+        {showFilters && (
+          <div className="mb-6 flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
                 {years.map(y => <button key={y} onClick={() => setYear(y)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${year === y ? 'bg-violet-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{y}</button>)}
             </div>
-            <div className="w-full sm:w-auto h-px sm:h-6 bg-slate-700 mx-2 hidden sm:block"></div>
             <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                 <button onClick={() => setMonth('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === 'all' ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Anual</button>
                 {months.map((m, i) => <button key={m} onClick={() => setMonth(i)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === i ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{m}</button>)}
             </div>
-        </div>
+             {activeTab === 'dashboard' && accounts.length > 0 && (
+                <div className="flex items-center space-x-2 flex-wrap gap-y-2 border-t border-slate-700 pt-4 mt-2">
+                    <button onClick={() => setSelectedAccountId('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedAccountId === 'all' ? 'bg-sky-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Todas las Cuentas</button>
+                    {accounts.map(acc => <button key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedAccountId === acc.id ? 'bg-sky-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{acc.accountName}</button>)}
+                </div>
+            )}
+          </div>
         )}
 
         <main>

@@ -7,11 +7,14 @@ import { Goal, Account } from '../../types';
 
 const SettingsView: React.FC = () => {
     const { 
-        expenseCategories, handleAddCategory, handleDeleteCategory,
+        expenseCategories, handleAddCategory, handleDeleteCategory, handleUpdateCategory,
         goals, handleDeleteGoal,
         accounts, handleDeleteAccount,
     } = useAppContext();
+    
     const [newCategory, setNewCategory] = useState('');
+    const [editingCategory, setEditingCategory] = useState<string | null>(null);
+    const [editedCategoryName, setEditedCategoryName] = useState('');
 
     const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
     const [selectedGoal, setSelectedGoal] = useState<Goal | undefined>(undefined);
@@ -23,6 +26,23 @@ const SettingsView: React.FC = () => {
         e.preventDefault();
         handleAddCategory(newCategory);
         setNewCategory('');
+    };
+    
+    const handleStartEditing = (category: string) => {
+        setEditingCategory(category);
+        setEditedCategoryName(category);
+    };
+
+    const handleCancelEditing = () => {
+        setEditingCategory(null);
+        setEditedCategoryName('');
+    };
+
+    const handleSaveEditing = () => {
+        if (editingCategory) {
+            handleUpdateCategory(editingCategory, editedCategoryName);
+        }
+        handleCancelEditing();
     };
 
     const openAddGoalModal = () => { setSelectedGoal(undefined); setIsGoalModalOpen(true); };
@@ -78,9 +98,29 @@ const SettingsView: React.FC = () => {
                             <h3 className="text-lg font-semibold text-gray-300 border-b border-slate-700 pb-2 mb-2">Categorías Actuales</h3>
                             {expenseCategories.map(cat => (
                                 <div key={cat} className="flex justify-between items-center bg-slate-700 p-2 rounded-md">
-                                    <span>{cat}</span>
-                                    {cat !== 'Sin Categorizar' && (
-                                        <button onClick={() => handleDeleteCategory(cat)} className="text-rose-500 hover:text-rose-400 text-xs font-bold">ELIMINAR</button>
+                                    {editingCategory === cat ? (
+                                        <>
+                                            <input 
+                                                type="text" value={editedCategoryName}
+                                                onChange={(e) => setEditedCategoryName(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleSaveEditing()}
+                                                className="flex-grow bg-slate-600 border border-slate-500 rounded-md py-1 px-2 text-white" autoFocus
+                                            />
+                                            <div className="flex items-center space-x-2 ml-2">
+                                                <button onClick={handleSaveEditing} className="text-emerald-400 hover:text-emerald-300 text-xs font-bold">GUARDAR</button>
+                                                <button onClick={handleCancelEditing} className="text-gray-400 hover:text-white text-xs">CANCELAR</button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>{cat}</span>
+                                            {cat !== 'Sin Categorizar' && (
+                                                <div className="flex items-center space-x-3">
+                                                    <button onClick={() => handleStartEditing(cat)} className="text-gray-400 hover:text-violet-400" title="Editar Categoría"><PencilIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDeleteCategory(cat)} className="text-gray-400 hover:text-rose-500" title="Eliminar Categoría"><TrashIcon className="w-4 h-4" /></button>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             ))}

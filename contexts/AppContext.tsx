@@ -10,6 +10,7 @@ interface AppContextType {
     expenseCategories: string[];
     handleConfirmImport: (newTransactions: Transaction[]) => void;
     handleAddCategory: (category: string) => void;
+    handleUpdateCategory: (oldCategory: string, newCategory: string) => void;
     handleDeleteCategory: (category: string) => void;
     handleDownloadBackup: () => void;
     handleRestoreBackup: (file: File, callback: () => void) => void;
@@ -47,14 +48,36 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             alert("La categoría no puede estar vacía o ya existe.");
         }
     };
+    
+    const handleUpdateCategory = (oldCategory: string, newCategory: string) => {
+        const trimmedNew = newCategory.trim();
+        if (!trimmedNew) {
+            alert("El nombre de la categoría no puede estar vacío.");
+            return;
+        }
+        if (oldCategory === 'Sin Categorizar') {
+            alert('No se puede modificar la categoría por defecto.');
+            return;
+        }
+        if (expenseCategories.find(c => c.toLowerCase() === trimmedNew.toLowerCase() && c.toLowerCase() !== oldCategory.toLowerCase())) {
+            alert("Esa categoría ya existe.");
+            return;
+        }
+
+        setExpenseCategories(prev => prev.map(c => (c === oldCategory ? trimmedNew : c)).sort());
+        setAllTransactions(prev => prev.map(t => (t.category === oldCategory ? { ...t, category: trimmedNew } : t)));
+        setGoals(prev => prev.map(g => (g.linkedCategory === oldCategory ? { ...g, linkedCategory: trimmedNew } : g)));
+        alert(`Categoría "${oldCategory}" actualizada a "${trimmedNew}".`);
+    };
   
     const handleDeleteCategory = (category: string) => {
         if (category === 'Sin Categorizar') {
             alert('No se puede eliminar la categoría por defecto.');
             return;
         }
-        if (window.confirm(`¿Eliminar la categoría "${category}"? Las transacciones asociadas no se eliminarán pero podrían necesitar ser recategorizadas.`)) {
+        if (window.confirm(`¿Eliminar la categoría "${category}"? Las transacciones asociadas se moverán a "Sin Categorizar".`)) {
             setExpenseCategories(prev => prev.filter(c => c !== category));
+            setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: 'Sin Categorizar'} : t));
         }
     };
 
@@ -157,6 +180,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         expenseCategories,
         handleConfirmImport,
         handleAddCategory,
+        handleUpdateCategory,
         handleDeleteCategory,
         handleDownloadBackup,
         handleRestoreBackup,
