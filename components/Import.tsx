@@ -165,9 +165,30 @@ const ImportView: React.FC = () => {
         }
     };
 
-    const handleStagedChange = (id: string, field: keyof StagedTransaction, value: any) => { /* ... (código existente) ... */ };
-    const deleteStaged = (id: string) => { /* ... (código existente) ... */ };
-    const confirmAndImport = () => { /* ... (código existente) ... */ };
+    const handleStagedChange = (id: string, field: keyof StagedTransaction, value: any) => {
+        setStagedTransactions(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
+    };
+    
+    const deleteStaged = (id: string) => {
+        setStagedTransactions(prev => prev.filter(t => t.id !== id));
+    };
+
+    const confirmAndImport = () => {
+        const transactionsToImport: Transaction[] = stagedTransactions
+            .filter(t => t.isValid)
+            .map(({ id, isValid, ...rest }) => ({
+                id: crypto.randomUUID(),
+                ...rest,
+                date: new Date(`${rest.date}T00:00:00`),
+            }));
+
+        if (transactionsToImport.length > 0) {
+            handleConfirmImport(transactionsToImport);
+            resetState();
+        } else {
+            alert("No hay transacciones válidas para importar.");
+        }
+    };
 
     if (!API_KEY) {
         return (
@@ -234,7 +255,48 @@ const ImportView: React.FC = () => {
             
             {stagedTransactions.length > 0 && (
                 <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                    {/* ... (código de la tabla de revisión y botones de confirmación existentes) ... */}
+                    <h3 className="text-xl font-semibold mb-4">Revisa las Transacciones Encontradas</h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead>
+                                <tr className="border-b border-slate-700 text-gray-400">
+                                    <th className="p-2">Fecha</th>
+                                    <th className="p-2">Descripción</th>
+                                    <th className="p-2 text-right">Monto</th>
+                                    <th className="p-2">Categoría</th>
+                                    <th className="p-2 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stagedTransactions.map(t => (
+                                    <tr key={t.id} className={`border-b border-slate-700 ${!t.isValid ? 'bg-rose-900/30' : ''}`}>
+                                        <td className="p-2"><input type="date" value={t.date} onChange={e => handleStagedChange(t.id, 'date', e.target.value)} className="bg-slate-700 rounded-md p-1 w-full"/></td>
+                                        <td className="p-2"><input type="text" value={t.description} onChange={e => handleStagedChange(t.id, 'description', e.target.value)} className="bg-slate-700 rounded-md p-1 w-full"/></td>
+                                        <td className="p-2 text-right"><input type="number" value={t.amount} onChange={e => handleStagedChange(t.id, 'amount', parseFloat(e.target.value) || 0)} className="bg-slate-700 rounded-md p-1 w-24 text-right"/></td>
+                                        <td className="p-2">
+                                            {t.type === TransactionType.EXPENSE ? (
+                                                <select value={t.category} onChange={e => handleStagedChange(t.id, 'category', e.target.value)} className="bg-slate-700 rounded-md p-1 w-full">
+                                                    {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                            ) : (
+                                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-900/50 text-emerald-300">Ingreso</span>
+                                            )}
+                                        </td>
+                                        <td className="p-2 text-center">
+                                            <button onClick={() => deleteStaged(t.id)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4 mx-auto"/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                     <div className="flex justify-end mt-6 space-x-4">
+                        <button onClick={resetState} className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">Cancelar</button>
+                        <button onClick={confirmAndImport} className="flex items-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                            <SparklesIcon className="w-5 h-5"/>
+                            <span>Confirmar e Importar</span>
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
