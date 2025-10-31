@@ -1,11 +1,14 @@
-import React, { useState, useMemo } from 'react';
-import { Transaction } from '../types';
-import Dashboard from './Dashboard';
-import Import from './Import';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
+import { SpinnerIcon } from './icons';
 import { useAppContext } from '../contexts/AppContext';
-import DatabaseView from './views/DatabaseView';
-import BackupView from './views/BackupView';
-import SettingsView from './views/SettingsView';
+
+// Carga perezosa de componentes para un mejor rendimiento inicial
+const Dashboard = lazy(() => import('./Dashboard'));
+const Import = lazy(() => import('./Import'));
+const DatabaseView = lazy(() => import('./views/DatabaseView'));
+const BackupView = lazy(() => import('./views/BackupView'));
+const SettingsView = lazy(() => import('./views/SettingsView'));
+
 
 type ActiveTab = 'dashboard' | 'importar' | 'base' | 'backup' | 'settings';
 
@@ -49,6 +52,12 @@ const MainApp: React.FC = () => {
     }
   }
 
+  const loadingFallback = (
+    <div className="flex justify-center items-center p-20">
+        <SpinnerIcon className="w-12 h-12 text-violet-400 animate-spin" />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-900 text-gray-200 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -79,7 +88,9 @@ const MainApp: React.FC = () => {
         )}
 
         <main>
-            {renderContent()}
+            <Suspense fallback={loadingFallback}>
+              {renderContent()}
+            </Suspense>
         </main>
       </div>
     </div>

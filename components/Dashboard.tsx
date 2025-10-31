@@ -1,17 +1,36 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Transaction, TransactionType, ChartData } from '../types';
 import { MetricCard } from './MetricCard';
 import { CustomBarChart } from './charts/BarChart';
 import { CustomLineChart } from './charts/LineChart';
 import { CustomPieChart } from './charts/PieChart';
-import { DollarSignIcon, PiggyBankIcon, SparklesIcon, SpinnerIcon, TrendingDownIcon, TrendingUpIcon } from './icons';
-import { GoogleGenAI } from '@google/genai';
+import { DollarSignIcon, PiggyBankIcon, TargetIcon, TrendingDownIcon, TrendingUpIcon } from './icons';
+import { useAppContext } from '../contexts/AppContext';
 
-interface DashboardProps {
-  transactions: Transaction[];
+// --- Sub-componente para la tarjeta de progreso de la meta ---
+interface GoalProgressCardProps {
+    name: string;
+    currentAmount: number;
+    targetAmount: number;
 }
+const GoalProgressCard: React.FC<GoalProgressCardProps> = ({ name, currentAmount, targetAmount }) => {
+    const progress = Math.min((currentAmount / targetAmount) * 100, 100);
+    const formatCurrencyLocal = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+    return (
+        <div className="bg-slate-700/50 p-4 rounded-lg">
+            <div className="flex justify-between items-center mb-1">
+                <p className="font-semibold text-white">{name}</p>
+                <p className="text-sm text-violet-300 font-medium">{progress.toFixed(1)}%</p>
+            </div>
+            <div className="w-full bg-slate-600 rounded-full h-2.5 mb-1">
+                <div className="bg-violet-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+            </div>
+            <p className="text-right text-xs text-gray-400">{formatCurrencyLocal(currentAmount)} / {formatCurrencyLocal(targetAmount)}</p>
+        </div>
+    );
+};
+
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-ES', {
@@ -22,10 +41,8 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [aiSummary, setAiSummary] = useState('');
-  const [summaryError, setSummaryError] = useState('');
+const Dashboard: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
+  const { allTransactions, goals } = useAppContext();
 
   const { totalIncome, totalExpenses, netMargin, savingsRate } = useMemo(() => {
     const income = transactions
@@ -94,44 +111,19 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
     return Object.entries(sourceTotals).map(([name, value]) => ({ name, value, total: value }));
   }, [transactions]);
   
-  const handleGenerateSummary = async () => {
-    setIsGenerating(true);
-    setAiSummary('');
-    setSummaryError('');
-
-    const prompt = `
-      Eres un asesor financiero amigable y servicial que se comunica en español.
-      Basado en los siguientes datos financieros para un período específico, proporciona un análisis conciso y útil.
-
-      **Métricas Clave:**
-      - Ingresos Totales: ${formatCurrency(totalIncome)}
-      - Gastos Totales: ${formatCurrency(totalExpenses)}
-      - Margen Neto (Ahorro): ${formatCurrency(netMargin)}
-      - Tasa de Ahorro: ${savingsRate.toFixed(1)}%
-
-      **Top 5 Gastos por Categoría:**
-      ${expenseDistributionData.slice(0, 5).map(d => `- ${d.name}: ${formatCurrency(d.value as number)}`).join('\n')}
-
-      **Tu Tarea:**
-      1.  Escribe un resumen de 2 a 3 frases sobre la salud financiera general durante este período.
-      2.  Identifica la categoría con el mayor gasto y haz un breve comentario al respecto.
-      3.  Ofrece un consejo práctico y positivo basado en los datos para mejorar la situación.
-      4.  Mantén un tono alentador y fácil de entender. Usa saltos de línea para separar los puntos.
-      `;
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-        setAiSummary(response.text);
-    } catch (error) {
-        console.error("Error generando resumen de IA:", error);
-        setSummaryError('No se pudo generar el resumen. Inténtelo de nuevo.');
-    } finally {
-        setIsGenerating(false);
-    }
-  };
-
+  const goalsWithProgress = useMemo(() => {
+    const categoryTotals = allTransactions.reduce((acc, t) => {
+        if (t.type === TransactionType.EXPENSE) { // Consider only expenses for savings goals, etc.
+             acc[t.category] = (acc[t.category] || 0) + t.amount;
+        }
+        return acc;
+    }, {} as { [key: string]: number });
+    
+    return goals.map(goal => ({
+        ...goal,
+        currentAmount: categoryTotals[goal.linkedCategory] || 0,
+    }));
+  }, [allTransactions, goals]);
 
   const pieChartColors = ["#8b5cf6", "#ec4899", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -144,30 +136,24 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
         <MetricCard title="Porcentaje de Ahorro" value={`${savingsRate.toFixed(1)}%`} icon={<PiggyBankIcon className="w-6 h-6 text-white"/>} colorClass="bg-gradient-to-br from-emerald-500 to-green-600"/>
       </div>
 
-      <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-semibold mb-4">Resumen Financiero con IA</h3>
-        {aiSummary ? (
-            <div className="text-gray-300 whitespace-pre-wrap font-sans">{aiSummary}</div>
-        ) : (
-            <div className="text-center text-gray-400 py-4">
-                {isGenerating ? (
-                    <div className="flex flex-col items-center">
-                        <SpinnerIcon className="w-8 h-8 text-violet-400 animate-spin mb-2" />
-                        <span>Analizando tus datos...</span>
-                    </div>
-                ) : (
-                    <>
-                        <p className="mb-4">Obtén un análisis y consejos personalizados sobre tus finanzas para este período.</p>
-                         <button onClick={handleGenerateSummary} disabled={transactions.length === 0} className="flex items-center justify-center mx-auto space-x-2 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition-colors">
-                            <SparklesIcon className="w-5 h-5" />
-                            <span>Generar Resumen</span>
-                        </button>
-                    </>
-                )}
-                {summaryError && <p className="text-rose-400 mt-4">{summaryError}</p>}
-            </div>
-        )}
-      </div>
+      {goalsWithProgress.length > 0 && (
+          <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                  <TargetIcon className="w-6 h-6 text-violet-400"/>
+                  <h3 className="text-xl font-semibold">Metas Financieras</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {goalsWithProgress.map(goal => (
+                      <GoalProgressCard 
+                          key={goal.id}
+                          name={goal.name}
+                          currentAmount={goal.currentAmount}
+                          targetAmount={goal.targetAmount}
+                      />
+                  ))}
+              </div>
+          </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-slate-800 p-6 rounded-xl shadow-lg">
