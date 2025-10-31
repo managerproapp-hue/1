@@ -8,7 +8,9 @@ import { PencilIcon, TrashIcon, PlusCircleIcon, ChevronLeftIcon, ChevronRightIco
 declare global {
   interface Window {
     XLSX: any;
-    jspdf: any;
+    jspdf: {
+        jsPDF: any;
+    };
   }
 }
 
@@ -25,7 +27,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
 
     const paginatedTransactions = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        return transactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        return transactions.slice(startIndex, startIndex, + ITEMS_PER_PAGE);
     }, [transactions, currentPage]);
 
     const handleEdit = (transaction: Transaction) => {
@@ -58,7 +60,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
             t.category,
             t.source || ''
         ]);
-        const csvContent = "data:text/csv;charset=utf-8," 
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" // Added BOM for Excel compatibility
             + headers.join(',') + '\n' 
             + rows.map(e => e.join(',')).join('\n');
         
@@ -73,6 +75,10 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     };
 
     const handleExportXLSX = () => {
+        if (typeof window.XLSX === 'undefined') {
+            alert('Error: La librería de exportación a Excel no se ha cargado. Por favor, revisa tu conexión a internet y refresca la página.');
+            return;
+        }
         const dataToExport = transactions.map(t => ({
             'Fecha': new Date(t.date).toLocaleDateString('es-ES'),
             'Descripción': t.description,
@@ -90,10 +96,23 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     };
 
     const handleExportPDF = () => {
-        const doc = new window.jspdf.jsPDF();
-        
+        // Comprobación más robusta para la librería jspdf y su constructor
+        if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+            alert('Error: La librería de exportación a PDF no se ha cargado. Por favor, revisa tu conexión a internet y refresca la página.');
+            return;
+        }
+    
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+    
+        // Comprobar también si el plugin autoTable se ha cargado correctamente
+        if (typeof (doc as any).autoTable !== 'function') {
+            alert('Error: El plugin para tablas PDF (autoTable) no se ha cargado. Por favor, revisa tu conexión a internet y refresca la página.');
+            return;
+        }
+    
         doc.text("Reporte de Transacciones", 14, 16);
-        
+    
         const tableColumn = ["Fecha", "Descripción", "Monto", "Tipo", "Categoría"];
         const tableRows = transactions.map(t => [
             new Date(t.date).toLocaleDateString('es-ES'),
@@ -102,7 +121,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
             t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
             t.category
         ]);
-
+    
         (doc as any).autoTable({
             head: [tableColumn],
             body: tableRows,
@@ -110,7 +129,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
             theme: 'grid',
             headStyles: { fillColor: [79, 70, 229] },
         });
-
+    
         doc.save("transacciones.pdf");
         setIsExportMenuOpen(false);
     };

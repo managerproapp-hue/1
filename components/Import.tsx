@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { SpinnerIcon } from './icons';
 
 const AiImportView = lazy(() => import('./AiImportView'));
@@ -8,26 +8,18 @@ type ActiveImportView = 'ai' | 'manual';
 type Tab = 'dashboard' | 'importar' | 'base' | 'backup' | 'settings';
 
 const Import: React.FC<{ setActiveTab: (tab: Tab) => void; }> = ({ setActiveTab }) => {
-    const [apiKeyExists, setApiKeyExists] = useState<boolean | null>(null);
-    const [activeView, setActiveView] = useState<ActiveImportView>('ai');
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setApiKeyExists(!!process.env.API_KEY);
-        }, 100);
-        return () => clearTimeout(timer);
-    }, []);
+    const [activeView, setActiveView] = React.useState<ActiveImportView>('ai');
+    
+    // Comprobación síncrona y directa. Es más robusto que usar useEffect para una variable de entorno de compilación.
+    const apiKeyExists = !!process.env.API_KEY;
 
     const renderLoading = () => (
         <div className="flex flex-col items-center justify-center text-center p-10 bg-slate-800 rounded-xl">
             <SpinnerIcon className="w-16 h-16 text-violet-400 animate-spin mb-4" />
+            <p>Cargando vista de importación...</p>
         </div>
     );
     
-    if (apiKeyExists === null) {
-        return renderLoading();
-    }
-
     if (!apiKeyExists) {
         return (
             <div className="space-y-4">
