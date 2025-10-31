@@ -39,7 +39,8 @@ const SettingsView: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Account Management */}
                     <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                        <h2 className="text-2xl font-semibold mb-4">Gestionar Cuentas Bancarias</h2>
+                        <h2 className="text-2xl font-semibold mb-2">Gestionar Cuentas Bancarias</h2>
+                        <p className="text-gray-400 mb-4 text-sm">Añade aquí tus cuentas bancarias. Podrás seleccionarlas al importar extractos para mantener tus transacciones organizadas.</p>
                         <div className="text-center mb-6">
                             <button onClick={openAddAccountModal} className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
                                 <PlusCircleIcon className="w-5 h-5" /><span>Añadir Nueva Cuenta</span>
