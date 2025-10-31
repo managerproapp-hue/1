@@ -5,7 +5,7 @@ import DatabaseView from './views/DatabaseView';
 import BackupView from './views/BackupView';
 import SettingsView from './views/SettingsView';
 import { useAppContext } from '../contexts/AppContext';
-import { PiggyBankIcon, UploadCloudIcon, SearchIcon, FileDownIcon, TargetIcon } from './icons';
+import { PiggyBankIcon, UploadCloudIcon, SearchIcon, FileDownIcon, TargetIcon, SettingsIcon } from './icons';
 
 const MainApp: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'importar' | 'base' | 'backup' | 'settings'>('dashboard');
@@ -59,7 +59,7 @@ const MainApp: React.FC = () => {
                     <NavLink tabName="importar" icon={<UploadCloudIcon className="w-5 h-5" />} label="Importar" />
                     <NavLink tabName="base" icon={<SearchIcon className="w-5 h-5" />} label="Base de Datos" />
                     <NavLink tabName="backup" icon={<FileDownIcon className="w-5 h-5" />} label="Copia de Seguridad" />
-                    <NavLink tabName="settings" icon={<PiggyBankIcon className="w-5 h-5" />} label="Configuración" />
+                    <NavLink tabName="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Configuración" />
                 </nav>
             </aside>
 
