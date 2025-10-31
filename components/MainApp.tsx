@@ -43,11 +43,8 @@ const MainApp: React.FC = () => {
     if (selectedAccountId === 'all') {
       return filteredTransactionsByDate;
     }
-    const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
-    if (!selectedAccount) return filteredTransactionsByDate;
-    
-    return filteredTransactionsByDate.filter(t => t.source === selectedAccount.accountName);
-  }, [filteredTransactionsByDate, selectedAccountId, accounts]);
+    return filteredTransactionsByDate.filter(t => t.accountId === selectedAccountId);
+  }, [filteredTransactionsByDate, selectedAccountId]);
 
   const years = useMemo(() => {
     const transactionYears = Array.from(new Set(allTransactions.map(t => new Date(t.date).getFullYear()))).sort((a, b) => Number(b) - Number(a));

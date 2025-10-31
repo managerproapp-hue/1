@@ -39,8 +39,6 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
     // Review State
     const [stagedTransactions, setStagedTransactions] = useState<StagedTransaction[]>([]);
     
-    const getSelectedAccount = (): Account | undefined => accounts.find(acc => acc.id === selectedAccountId);
-
     const resetState = () => {
         setStep('upload');
         setIsLoading(false);
@@ -211,7 +209,7 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
         return {
             id: `manual-${i}`, date, description, amount: Math.abs(amount), type,
             category: type === TransactionType.INCOME ? (incomeCategories[0] || 'Ingresos Varios') : 'Sin Categorizar',
-            isValid, source: getSelectedAccount()?.accountName || 'Importación',
+            isValid, accountId: selectedAccountId,
         };
     };
     
@@ -231,7 +229,7 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
             description: t.description || 'Sin descripción', amount: Math.abs(amount), type,
             category: type === TransactionType.INCOME ? (incomeCategories[0] || 'Ingresos Varios') : 'Sin Categorizar',
             isValid,
-            source: getSelectedAccount()?.accountName || 'Importación',
+            accountId: selectedAccountId,
         };
     };
 
@@ -290,10 +288,13 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
     };
 
     const handleConfirm = () => {
-        const transactionsToImport: Transaction[] = stagedTransactions.map(({ id, ...rest }) => ({
-            id: crypto.randomUUID(), ...rest, date: new Date(`${rest.date}T00:00:00`),
+        const transactionsToImport: Omit<Transaction, 'id'>[] = stagedTransactions.map(({ id, isValid, ...rest }) => ({
+             ...rest, date: new Date(`${rest.date}T00:00:00`),
         }));
-        handleConfirmImport(transactionsToImport);
+        
+        const finalTransactions = transactionsToImport.map(t => ({...t, id: crypto.randomUUID()}));
+
+        handleConfirmImport(finalTransactions);
         resetState();
         setActiveTab('dashboard');
     };

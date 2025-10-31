@@ -20,7 +20,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
     const [amount, setAmount] = useState<number | ''>('');
     const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
     const [category, setCategory] = useState('');
-    const [source, setSource] = useState('');
+    const [accountId, setAccountId] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -30,17 +30,17 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                 setAmount(transactionToEdit.amount);
                 setType(transactionToEdit.type);
                 setCategory(transactionToEdit.category);
-                setSource(transactionToEdit.source || '');
+                setAccountId(transactionToEdit.accountId || '');
             } else {
                 setDate(formatDate(new Date()));
                 setDescription('');
                 setAmount('');
                 setType(TransactionType.EXPENSE);
                 setCategory(expenseCategories[0] || 'Sin Categorizar');
-                setSource(accounts[0]?.accountName || '');
+                setAccountId(accounts[0]?.id || '');
             }
         }
-    }, [isOpen, transactionToEdit, isEditMode, expenseCategories, accounts]);
+    }, [isOpen, transactionToEdit, isEditMode, expenseCategories, accounts, incomeCategories]);
 
     useEffect(() => {
         if (!isEditMode) {
@@ -55,7 +55,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!description || amount === '' || amount <= 0 || !source) {
+        if (!description || amount === '' || amount <= 0 || !accountId) {
             alert('Por favor, complete todos los campos requeridos, incluyendo la cuenta.');
             return;
         }
@@ -66,7 +66,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
             amount: amount as number,
             type,
             category,
-            source,
+            accountId,
         };
         
         if (isEditMode) {
@@ -121,11 +121,11 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                         </div>
                         <div>
                             <label htmlFor="account" className="block text-sm font-medium text-gray-300 mb-1">Cuenta</label>
-                            <select id="account" value={source} onChange={e => setSource(e.target.value)} required className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500">
+                            <select id="account" value={accountId} onChange={e => setAccountId(e.target.value)} required className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500">
                                 {accounts.length === 0 ? (
                                     <option value="" disabled>Crea una cuenta primero</option>
                                 ) : (
-                                    accounts.map(acc => <option key={acc.id} value={acc.accountName}>{acc.accountName}</option>)
+                                    accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.accountName}</option>)
                                 )}
                             </select>
                         </div>

@@ -23,13 +23,14 @@ const formatCurrency = (value: number) => {
 
 const AccountComparisonView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
     const { accounts } = useAppContext();
+    const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
 
     const accountData = useMemo(() => {
         const dataByAccount: Map<string, AccountMetrics> = new Map();
 
         // Initialize all accounts from context to ensure they appear even with 0 transactions
         accounts.forEach(acc => {
-            dataByAccount.set(acc.accountName, {
+            dataByAccount.set(acc.id, {
                 income: 0,
                 expenses: 0,
                 netMargin: 0,
@@ -39,12 +40,12 @@ const AccountComparisonView: React.FC<{ transactions: Transaction[] }> = ({ tran
         
         // Populate with transaction data
         transactions.forEach(t => {
-            const accountName = t.source || 'Sin Asignar';
-            if (!dataByAccount.has(accountName)) {
-                 dataByAccount.set(accountName, { income: 0, expenses: 0, netMargin: 0, transactionCount: 0 });
+            const accountId = t.accountId;
+            if (!dataByAccount.has(accountId)) { // Should not happen if accounts are in context, but safe check
+                 dataByAccount.set(accountId, { income: 0, expenses: 0, netMargin: 0, transactionCount: 0 });
             }
             
-            const current = dataByAccount.get(accountName)!;
+            const current = dataByAccount.get(accountId)!;
             if (t.type === TransactionType.INCOME) {
                 current.income += t.amount;
             } else {
@@ -78,12 +79,12 @@ const AccountComparisonView: React.FC<{ transactions: Transaction[] }> = ({ tran
     const chartData = useMemo(() => {
         return Array.from(accountData.entries())
             .filter(([, metrics]) => metrics.transactionCount > 0)
-            .map(([accountName, metrics]) => ({
-                name: accountName,
+            .map(([accountId, metrics]) => ({
+                name: accountNameMap.get(accountId) || 'Desconocida',
                 Ingresos: metrics.income,
                 Gastos: metrics.expenses,
             }));
-    }, [accountData]);
+    }, [accountData, accountNameMap]);
 
     return (
         <div className="space-y-6">
@@ -99,9 +100,9 @@ const AccountComparisonView: React.FC<{ transactions: Transaction[] }> = ({ tran
             <div className="space-y-4">
                  <h2 className="text-2xl font-semibold mt-8 mb-4">Desglose por Cuenta</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Array.from(accountData.entries()).map(([accountName, metrics]) => (
-                        <div key={accountName} className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                            <h3 className="text-xl font-semibold mb-3 truncate">{accountName}</h3>
+                    {Array.from(accountData.entries()).map(([accountId, metrics]) => (
+                        <div key={accountId} className="bg-slate-800 p-6 rounded-xl shadow-lg">
+                            <h3 className="text-xl font-semibold mb-3 truncate">{accountNameMap.get(accountId) || 'Cuenta Desconocida'}</h3>
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center text-emerald-400">
                                     <span>Ingresos:</span>

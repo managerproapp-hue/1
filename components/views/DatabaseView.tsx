@@ -17,11 +17,14 @@ declare global {
 const ITEMS_PER_PAGE = 10;
 
 const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
-    const { handleDeleteTransaction } = useAppContext();
+    const { handleDeleteTransaction, accounts } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [transactionToEdit, setTransactionToEdit] = useState<Transaction | undefined>(undefined);
     const [currentPage, setCurrentPage] = useState(1);
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+    const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
+    const getAccountName = (accountId: string) => accountNameMap.get(accountId) || 'Cuenta Desconocida';
 
     const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
 
@@ -51,14 +54,14 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
 
     // --- MANEJADORES DE EXPORTACIÓN ---
     const handleExportCSV = () => {
-        const headers = ['Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría', 'Fuente'];
+        const headers = ['Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría', 'Cuenta'];
         const rows = transactions.map(t => [
             new Date(t.date).toLocaleDateString('es-ES'),
             `"${t.description.replace(/"/g, '""')}"`,
             t.amount.toString().replace('.', ','),
             t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
             t.category,
-            t.source || ''
+            getAccountName(t.accountId)
         ]);
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" // Added BOM for Excel compatibility
             + headers.join(',') + '\n' 
@@ -85,7 +88,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
             'Monto': t.amount,
             'Tipo': t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
             'Categoría': t.category,
-            'Fuente': t.source || ''
+            'Cuenta': getAccountName(t.accountId)
         }));
 
         const ws = window.XLSX.utils.json_to_sheet(dataToExport);
@@ -96,7 +99,6 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     };
 
     const handleExportPDF = () => {
-        // Comprobación más robusta para la librería jspdf y su constructor
         if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
             alert('Error: La librería de exportación a PDF no se ha cargado. Por favor, revisa tu conexión a internet y refresca la página.');
             return;
@@ -105,7 +107,6 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
     
-        // Comprobar también si el plugin autoTable se ha cargado correctamente
         if (typeof (doc as any).autoTable !== 'function') {
             alert('Error: El plugin para tablas PDF (autoTable) no se ha cargado. Por favor, revisa tu conexión a internet y refresca la página.');
             return;
@@ -113,13 +114,14 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     
         doc.text("Reporte de Transacciones", 14, 16);
     
-        const tableColumn = ["Fecha", "Descripción", "Monto", "Tipo", "Categoría"];
+        const tableColumn = ["Fecha", "Descripción", "Monto", "Tipo", "Categoría", "Cuenta"];
         const tableRows = transactions.map(t => [
             new Date(t.date).toLocaleDateString('es-ES'),
             t.description,
             `${t.type === TransactionType.INCOME ? '+' : '-'} ${formatCurrency(t.amount)}`,
             t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
-            t.category
+            t.category,
+            getAccountName(t.accountId)
         ]);
     
         (doc as any).autoTable({
@@ -176,6 +178,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                         <tr className="border-b border-slate-700 text-sm text-gray-400">
                             <th className="p-3">Fecha</th>
                             <th className="p-3">Descripción</th>
+                            <th className="p-3">Cuenta</th>
                             <th className="p-3 text-right">Monto</th>
                             <th className="p-3">Tipo</th>
                             <th className="p-3">Categoría</th>
@@ -187,6 +190,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                             <tr key={t.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
                                 <td className="p-3">{formatDate(t.date)}</td>
                                 <td className="p-3">{t.description}</td>
+                                <td className="p-3 text-xs text-gray-400">{getAccountName(t.accountId)}</td>
                                 <td className={`p-3 text-right font-semibold ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
                                 </td>
@@ -205,7 +209,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan={6} className="text-center p-8 text-gray-500">No hay transacciones que mostrar.</td>
+                                <td colSpan={7} className="text-center p-8 text-gray-500">No hay transacciones que mostrar.</td>
                             </tr>
                         )}
                     </tbody>

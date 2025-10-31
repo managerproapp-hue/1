@@ -10,7 +10,7 @@ export interface Transaction {
   amount: number;
   type: TransactionType;
   category: string;
-  source?: string;
+  accountId: string; // Changed from source?: string
 }
 
 export interface ChartData {
@@ -26,7 +26,7 @@ export interface StagedTransaction {
   type: TransactionType;
   category: string;
   isValid: boolean;
-  source: string;
+  accountId: string; // Changed from source: string
 }
 
 export interface ProcessingError {

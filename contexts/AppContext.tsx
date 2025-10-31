@@ -60,12 +60,24 @@ const loadInitialState = (): AppState => {
             };
         }
         const storedState = JSON.parse(serializedState);
+        const loadedAccounts = storedState.accounts || [];
+        
+        // --- Migration logic from 'source' to 'accountId' ---
+        const loadedTransactions = (storedState.allTransactions || []).map((tx: any) => {
+            if (tx.source && !tx.accountId) {
+                const matchingAccount = loadedAccounts.find((acc: Account) => acc.accountName === tx.source);
+                tx.accountId = matchingAccount ? matchingAccount.id : (loadedAccounts[0]?.id || 'unassigned');
+            }
+            delete tx.source; // Clean up old property
+            return { ...tx, date: new Date(tx.date) };
+        });
+
         return {
-            allTransactions: (storedState.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) })),
+            allTransactions: loadedTransactions,
             expenseCategories: storedState.expenseCategories || INITIAL_EXPENSE_CATEGORIES,
             incomeCategories: storedState.incomeCategories || INITIAL_INCOME_CATEGORIES,
             goals: storedState.goals || [],
-            accounts: storedState.accounts || [],
+            accounts: loadedAccounts,
         };
     } catch (error) {
         console.error("Could not load state from localStorage", error);
@@ -274,23 +286,15 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     };
 
     const handleUpdateAccount = (updatedAccount: Account) => {
-        const oldAccount = accounts.find(a => a.id === updatedAccount.id);
-        if (oldAccount && oldAccount.accountName !== updatedAccount.accountName) {
-            setAllTransactions(prev => 
-                prev.map(t => 
-                    t.source === oldAccount.accountName ? { ...t, source: updatedAccount.accountName } : t
-                )
-            );
-        }
         setAccounts(prev => prev.map(a => a.id === updatedAccount.id ? updatedAccount : a));
-        alert(`Cuenta "${oldAccount?.accountName || updatedAccount.accountName}" actualizada.`);
+        alert(`Cuenta "${updatedAccount.accountName}" actualizada.`);
     };
 
     const handleDeleteAccount = (id: string) => {
         const accountToDelete = accounts.find(a => a.id === id);
         if (!accountToDelete) return;
     
-        const transactionsInAccount = allTransactions.some(t => t.source === accountToDelete.accountName);
+        const transactionsInAccount = allTransactions.some(t => t.accountId === id);
         if (transactionsInAccount) {
             alert(`No se puede eliminar la cuenta "${accountToDelete.accountName}" porque tiene transacciones asociadas. Por favor, primero mueva o elimine esas transacciones.`);
             return;
