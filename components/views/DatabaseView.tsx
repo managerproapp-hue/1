@@ -27,7 +27,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
 
     const paginatedTransactions = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        return transactions.slice(startIndex, startIndex, + ITEMS_PER_PAGE);
+        return transactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
     }, [transactions, currentPage]);
 
     const handleEdit = (transaction: Transaction) => {
