@@ -124,8 +124,13 @@ const AccountComparisonView: React.FC<{ transactions: Transaction[] }> = ({ tran
             
             <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
                 <h2 className="text-2xl font-semibold mb-4">Gráfico Comparativo de Cuentas</h2>
-                <CustomBarChart data={chartData} dataKey="Ingresos" fillColor="#8b5cf6" />
-                <CustomBarChart data={chartData} dataKey="Gastos" fillColor="#ec4899" />
+                <CustomBarChart 
+                    data={chartData} 
+                    bars={[
+                        { dataKey: 'Ingresos', fillColor: '#8b5cf6' },
+                        { dataKey: 'Gastos', fillColor: '#ec4899' }
+                    ]} 
+                />
             </div>
         </div>
     );

@@ -1,20 +1,18 @@
-
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ChartData } from '../../types';
 
 interface CustomBarChartProps {
   data: ChartData[];
-  dataKey: string;
-  fillColor: string;
+  bars: { dataKey: string; fillColor: string }[];
 }
 
 const formatYAxis = (tickItem: number) => `€${tickItem.toLocaleString()}`;
 
-export const CustomBarChart: React.FC<CustomBarChartProps> = ({ data, dataKey, fillColor }) => {
+export const CustomBarChart: React.FC<CustomBarChartProps> = ({ data, bars }) => {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+      <BarChart data={data} margin={{ top: 5, right: 20, left: 30, bottom: 5 }} barGap={4}>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
         <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
         <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatYAxis} />
@@ -27,7 +25,10 @@ export const CustomBarChart: React.FC<CustomBarChartProps> = ({ data, dataKey, f
           }}
           cursor={{ fill: 'rgba(79, 70, 229, 0.2)' }}
         />
-        <Bar dataKey={dataKey} fill={fillColor} radius={[4, 4, 0, 0]} />
+        <Legend wrapperStyle={{fontSize: "14px"}}/>
+        {bars.map(bar => (
+            <Bar key={bar.dataKey} dataKey={bar.dataKey} fill={bar.fillColor} radius={[4, 4, 0, 0]} />
+        ))}
       </BarChart>
     </ResponsiveContainer>
   );

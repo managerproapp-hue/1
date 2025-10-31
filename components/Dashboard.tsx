@@ -100,15 +100,18 @@ const Dashboard: React.FC<{ transactions: Transaction[] }> = ({ transactions }) 
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [transactions]);
-
-  const incomeSourceData = useMemo<ChartData[]>(() => {
-    const sourceTotals: { [key: string]: number } = {};
+  
+  const incomeByCategoryData = useMemo<ChartData[]>(() => {
+    const categoryTotals: { [key: string]: number } = {};
     transactions
-      .filter(t => t.type === TransactionType.INCOME && t.source)
+      .filter(t => t.type === TransactionType.INCOME)
       .forEach(t => {
-        sourceTotals[t.source!] = (sourceTotals[t.source!] || 0) + t.amount;
+        const category = t.category || 'Ingresos Varios';
+        categoryTotals[category] = (categoryTotals[category] || 0) + t.amount;
       });
-    return Object.entries(sourceTotals).map(([name, value]) => ({ name, value, total: value }));
+    return Object.entries(categoryTotals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [transactions]);
   
   const goalsWithProgress = useMemo(() => {
@@ -175,11 +178,11 @@ const Dashboard: React.FC<{ transactions: Transaction[] }> = ({ transactions }) 
        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
           <h3 className="text-xl font-semibold mb-4">Gastos por Categoría</h3>
-          <CustomBarChart data={expenseDistributionData} dataKey="value" fillColor="#ec4899" />
+          <CustomBarChart data={expenseDistributionData} bars={[{ dataKey: 'value', fillColor: '#ec4899' }]} />
         </div>
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-          <h3 className="text-xl font-semibold mb-4">Rendimiento por Fuente de Ingreso</h3>
-          <CustomBarChart data={incomeSourceData} dataKey="total" fillColor="#8b5cf6" />
+          <h3 className="text-xl font-semibold mb-4">Ingresos por Categoría</h3>
+          <CustomBarChart data={incomeByCategoryData} bars={[{ dataKey: 'value', fillColor: '#8b5cf6' }]} />
         </div>
       </div>
     </div>

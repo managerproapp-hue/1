@@ -20,7 +20,7 @@ type CSVMapping = {
 };
 
 const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => void }> = ({ setActiveTab }) => {
-    const { handleConfirmImport, expenseCategories, accounts } = useAppContext();
+    const { handleConfirmImport, expenseCategories, incomeCategories, accounts } = useAppContext();
     
     // State Management
     const [step, setStep] = useState<Step>('upload');
@@ -206,12 +206,12 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
         const amountStr = row[mapping.amount!].replace(/[^0-9.,-]/g, '').replace(',', '.');
         const amount = parseFloat(amountStr);
         const type = amount >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
-        // FIX: Ensure isValid is always a boolean. The `&&` operator can return the last truthy value, which might be a string.
         const isValid = !!(!isNaN(amount) && date && description);
 
         return {
             id: `manual-${i}`, date, description, amount: Math.abs(amount), type,
-            category: type === TransactionType.INCOME ? 'Ingresos' : 'Sin Categorizar', isValid, source: getSelectedAccount()?.accountName || 'Importación',
+            category: type === TransactionType.INCOME ? (incomeCategories[0] || 'Ingresos Varios') : 'Sin Categorizar',
+            isValid, source: getSelectedAccount()?.accountName || 'Importación',
         };
     };
     
@@ -224,13 +224,13 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
             const year = parseInt(dateParts[0]);
             if (year > 1900) isValidDate = true;
         }
-        // FIX: Ensure isValid is always a boolean. The `&&` operator can return a truthy value, which might be a string.
         const isValid = !!(t.date && isValidDate && t.description && !isNaN(amount));
 
         return {
             id: `ai-${Date.now()}-${i}`, date: t.date || '',
             description: t.description || 'Sin descripción', amount: Math.abs(amount), type,
-            category: type === TransactionType.INCOME ? 'Ingresos' : 'Sin Categorizar', isValid,
+            category: type === TransactionType.INCOME ? (incomeCategories[0] || 'Ingresos Varios') : 'Sin Categorizar',
+            isValid,
             source: getSelectedAccount()?.accountName || 'Importación',
         };
     };
@@ -366,7 +366,7 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
                     <div>
                         <div className="flex justify-between items-center flex-wrap gap-2 mb-4">
                             <h3 className="text-xl font-semibold">Paso Final: Revisa y Categoriza ({stagedTransactions.length})</h3>
-                            <button onClick={handleAiCategorize} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm"><SparklesIcon className="w-4 h-4"/><span>Categorizar con IA</span></button>
+                            <button onClick={handleAiCategorize} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm"><SparklesIcon className="w-4 h-4"/><span>Categorizar Gastos con IA</span></button>
                         </div>
                          <div className="max-h-96 overflow-y-auto mb-4 border border-slate-700 rounded-lg">
                             <table className="w-full text-sm">
@@ -381,7 +381,11 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
                                                     <select value={t.category} onChange={(e) => updateStagedTransaction(t.id, 'category', e.target.value)} className="w-full bg-slate-700 border-slate-600 rounded-md py-1 px-2 text-white text-xs">
                                                         {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
                                                     </select>
-                                                ) : <span className="text-gray-400">Ingreso</span>}
+                                                ) : (
+                                                    <select value={t.category} onChange={(e) => updateStagedTransaction(t.id, 'category', e.target.value)} className="w-full bg-slate-700 border-slate-600 rounded-md py-1 px-2 text-white text-xs">
+                                                        {incomeCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                                    </select>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

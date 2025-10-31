@@ -7,9 +7,14 @@ const INITIAL_EXPENSE_CATEGORIES = [
   'Sin Categorizar', 'Gastos niñas', 'Supermercados', 'Gasolina', 'Seguros', 'Ropa / Otros', 'Teléfono / Internet', 'TV de Pago', 'Agua', 'Manutención', 'Prestamos', 'Luz', 'Mascotas', 'Ayuntamiento', 'Ahorros', 'Vivienda', 'Transporte', 'Comida',
 ];
 
+const INITIAL_INCOME_CATEGORIES = [
+    'Nómina', 'Ventas', 'Ingresos Varios'
+];
+
 interface AppState {
     allTransactions: Transaction[];
     expenseCategories: string[];
+    incomeCategories: string[];
     goals: Goal[];
     accounts: Account[];
 }
@@ -17,10 +22,14 @@ interface AppState {
 interface AppContextType {
     allTransactions: Transaction[];
     expenseCategories: string[];
+    incomeCategories: string[];
     handleConfirmImport: (newTransactions: Transaction[]) => void;
-    handleAddCategory: (category: string) => void;
-    handleUpdateCategory: (oldCategory: string, newCategory: string) => void;
-    handleDeleteCategory: (category: string) => void;
+    handleAddExpenseCategory: (category: string) => void;
+    handleUpdateExpenseCategory: (oldCategory: string, newCategory: string) => void;
+    handleDeleteExpenseCategory: (category: string) => void;
+    handleAddIncomeCategory: (category: string) => void;
+    handleUpdateIncomeCategory: (oldCategory: string, newCategory: string) => void;
+    handleDeleteIncomeCategory: (category: string) => void;
     handleDownloadBackup: () => void;
     handleRestoreBackup: (file: File, callback: () => void) => void;
     handleAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
@@ -45,6 +54,7 @@ const loadInitialState = (): AppState => {
             return {
                 allTransactions: [],
                 expenseCategories: INITIAL_EXPENSE_CATEGORIES,
+                incomeCategories: INITIAL_INCOME_CATEGORIES,
                 goals: [],
                 accounts: [],
             };
@@ -53,6 +63,7 @@ const loadInitialState = (): AppState => {
         return {
             allTransactions: (storedState.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) })),
             expenseCategories: storedState.expenseCategories || INITIAL_EXPENSE_CATEGORIES,
+            incomeCategories: storedState.incomeCategories || INITIAL_INCOME_CATEGORIES,
             goals: storedState.goals || [],
             accounts: storedState.accounts || [],
         };
@@ -61,6 +72,7 @@ const loadInitialState = (): AppState => {
         return {
             allTransactions: [],
             expenseCategories: INITIAL_EXPENSE_CATEGORIES,
+            incomeCategories: INITIAL_INCOME_CATEGORIES,
             goals: [],
             accounts: [],
         };
@@ -71,6 +83,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const initialState = loadInitialState();
     const [allTransactions, setAllTransactions] = useState<Transaction[]>(initialState.allTransactions);
     const [expenseCategories, setExpenseCategories] = useState<string[]>(initialState.expenseCategories);
+    const [incomeCategories, setIncomeCategories] = useState<string[]>(initialState.incomeCategories);
     const [accounts, setAccounts] = useState<Account[]>(initialState.accounts);
     const [goals, setGoals] = useState<Goal[]>(initialState.goals);
 
@@ -79,6 +92,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             const stateToSave = {
                 allTransactions,
                 expenseCategories,
+                incomeCategories,
                 goals,
                 accounts,
             };
@@ -87,14 +101,14 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         } catch (error) {
             console.error("Could not save state to localStorage", error);
         }
-    }, [allTransactions, expenseCategories, goals, accounts]);
+    }, [allTransactions, expenseCategories, incomeCategories, goals, accounts]);
 
     const handleConfirmImport = (newTransactions: Transaction[]) => {
         setAllTransactions(prev => [...prev, ...newTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         alert(`${newTransactions.length} transacciones importadas con éxito.`);
     };
 
-    const handleAddCategory = (newCategory: string) => {
+    const handleAddExpenseCategory = (newCategory: string) => {
         const trimmed = newCategory.trim();
         if (trimmed && !expenseCategories.find(c => c.toLowerCase() === trimmed.toLowerCase())) {
             setExpenseCategories(prev => [...prev, trimmed].sort());
@@ -103,7 +117,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
     };
     
-    const handleUpdateCategory = (oldCategory: string, newCategory: string) => {
+    const handleUpdateExpenseCategory = (oldCategory: string, newCategory: string) => {
         const trimmedNew = newCategory.trim();
         if (!trimmedNew) {
             alert("El nombre de la categoría no puede estar vacío.");
@@ -121,10 +135,10 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setExpenseCategories(prev => prev.map(c => (c === oldCategory ? trimmedNew : c)).sort());
         setAllTransactions(prev => prev.map(t => (t.category === oldCategory ? { ...t, category: trimmedNew } : t)));
         setGoals(prev => prev.map(g => (g.linkedCategory === oldCategory ? { ...g, linkedCategory: trimmedNew } : g)));
-        alert(`Categoría "${oldCategory}" actualizada a "${trimmedNew}".`);
+        alert(`Categoría de gasto "${oldCategory}" actualizada a "${trimmedNew}".`);
     };
   
-    const handleDeleteCategory = (category: string) => {
+    const handleDeleteExpenseCategory = (category: string) => {
         if (category === 'Sin Categorizar') {
             alert('No se puede eliminar la categoría por defecto.');
             return;
@@ -132,6 +146,41 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (window.confirm(`¿Eliminar la categoría "${category}"? Las transacciones asociadas se moverán a "Sin Categorizar".`)) {
             setExpenseCategories(prev => prev.filter(c => c !== category));
             setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: 'Sin Categorizar'} : t));
+        }
+    };
+
+    const handleAddIncomeCategory = (newCategory: string) => {
+        const trimmed = newCategory.trim();
+        if (trimmed && !incomeCategories.find(c => c.toLowerCase() === trimmed.toLowerCase())) {
+            setIncomeCategories(prev => [...prev, trimmed].sort());
+        } else {
+            alert("La categoría no puede estar vacía o ya existe.");
+        }
+    };
+
+    const handleUpdateIncomeCategory = (oldCategory: string, newCategory: string) => {
+        const trimmedNew = newCategory.trim();
+        if (!trimmedNew) {
+            alert("El nombre de la categoría no puede estar vacío.");
+            return;
+        }
+        if (incomeCategories.find(c => c.toLowerCase() === trimmedNew.toLowerCase() && c.toLowerCase() !== oldCategory.toLowerCase())) {
+            alert("Esa categoría ya existe.");
+            return;
+        }
+        setIncomeCategories(prev => prev.map(c => (c === oldCategory ? trimmedNew : c)).sort());
+        setAllTransactions(prev => prev.map(t => (t.category === oldCategory ? { ...t, category: trimmedNew } : t)));
+        alert(`Categoría de ingreso "${oldCategory}" actualizada a "${trimmedNew}".`);
+    };
+
+    const handleDeleteIncomeCategory = (category: string) => {
+        const fallbackCategory = 'Ingresos Varios';
+        if (!incomeCategories.includes(fallbackCategory)) {
+             setIncomeCategories(prev => [...prev, fallbackCategory]);
+        }
+        if (window.confirm(`¿Eliminar la categoría "${category}"? Las transacciones asociadas se moverán a "${fallbackCategory}".`)) {
+            setIncomeCategories(prev => prev.filter(c => c !== category));
+            setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: fallbackCategory} : t));
         }
     };
 
@@ -143,7 +192,8 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const backupData = {
             lastUpdated: new Date().toISOString(),
             transactions: allTransactions,
-            categories: expenseCategories,
+            expenseCategories: expenseCategories,
+            incomeCategories: incomeCategories,
             goals: goals,
             accounts: accounts,
         };
@@ -165,12 +215,14 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             try {
                 const data = JSON.parse(event.target?.result as string);
                 const transactionsToLoad = (data.transactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) }));
-                const categoriesToLoad = data.categories || INITIAL_EXPENSE_CATEGORIES;
+                const expenseCategoriesToLoad = data.expenseCategories || INITIAL_EXPENSE_CATEGORIES;
+                const incomeCategoriesToLoad = data.incomeCategories || INITIAL_INCOME_CATEGORIES;
                 const goalsToLoad = data.goals || [];
                 const accountsToLoad = data.accounts || [];
 
                 setAllTransactions(transactionsToLoad);
-                setExpenseCategories(categoriesToLoad);
+                setExpenseCategories(expenseCategoriesToLoad);
+                setIncomeCategories(incomeCategoriesToLoad);
                 setGoals(goalsToLoad);
                 setAccounts(accountsToLoad);
 
@@ -232,10 +284,14 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const value = {
         allTransactions,
         expenseCategories,
+        incomeCategories,
         handleConfirmImport,
-        handleAddCategory,
-        handleUpdateCategory,
-        handleDeleteCategory,
+        handleAddExpenseCategory,
+        handleUpdateExpenseCategory,
+        handleDeleteExpenseCategory,
+        handleAddIncomeCategory,
+        handleUpdateIncomeCategory,
+        handleDeleteIncomeCategory,
         handleDownloadBackup,
         handleRestoreBackup,
         handleAddTransaction,
