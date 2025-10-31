@@ -12,6 +12,14 @@ const SettingsView = lazy(() => import('./views/SettingsView'));
 
 type ActiveTab = 'dashboard' | 'importar' | 'base' | 'backup' | 'settings';
 
+const TABS: { id: ActiveTab; label: string }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'importar', label: 'Importar Datos' },
+    { id: 'base', label: 'Base de Datos' },
+    { id: 'backup', label: 'Copia de Seguridad' },
+    { id: 'settings', label: 'Configuración' },
+];
+
 const MainApp: React.FC = () => {
   const { allTransactions } = useAppContext();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -66,10 +74,10 @@ const MainApp: React.FC = () => {
         </header>
 
         <nav className="mb-6 flex space-x-2 border-b border-slate-700 overflow-x-auto">
-          {['dashboard', 'importar', 'base', 'backup', 'settings'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab as ActiveTab)} 
-                    className={`px-4 py-2 font-medium text-lg transition-colors duration-200 whitespace-nowrap ${activeTab === tab ? 'text-violet-400 border-b-2 border-violet-400' : 'text-gray-400 hover:text-white'}`}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1).replace('importar', 'Importar Datos').replace('base', 'Base de Datos').replace('backup', 'Copia de Seguridad').replace('settings', 'Configuración')}
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} 
+                    className={`px-4 py-2 font-medium text-lg transition-colors duration-200 whitespace-nowrap ${activeTab === tab.id ? 'text-violet-400 border-b-2 border-violet-400' : 'text-gray-400 hover:text-white'}`}>
+              {tab.label}
             </button>
           ))}
         </nav>
