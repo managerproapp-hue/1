@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
-import { StagedTransaction, Transaction, TransactionType } from '../../types';
-import { useAppContext } from '../../contexts/AppContext';
-import { UploadCloudIcon, SpinnerIcon, ChevronRightIcon, ChevronLeftIcon } from '../icons';
+import { StagedTransaction, Transaction, TransactionType } from '../types';
+import { useAppContext } from '../contexts/AppContext';
+import { UploadCloudIcon, SpinnerIcon, ChevronRightIcon, ChevronLeftIcon } from './icons';
 
 type CSVMapping = {
     date: number | null;

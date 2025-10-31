@@ -1,8 +1,9 @@
+
 import React, { useState, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { StagedTransaction, Transaction, TransactionType, ProcessingError, Account } from '../types';
 import { useAppContext } from '../contexts/AppContext';
-import { SparklesIcon, SpinnerIcon, UploadCloudIcon } from '../icons';
+import { SparklesIcon, SpinnerIcon, UploadCloudIcon } from './icons';
 
 // Declarar pdfjsLib para que TypeScript lo reconozca
 declare const pdfjsLib: any;
