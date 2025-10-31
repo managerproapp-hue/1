@@ -13,6 +13,7 @@ interface AppContextType {
     handleDeleteCategory: (category: string) => void;
     handleDownloadBackup: () => void;
     handleRestoreBackup: (file: File, callback: () => void) => void;
+    handleAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -86,6 +87,14 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         reader.readAsText(file);
     };
 
+    const handleAddTransaction = (transaction: Omit<Transaction, 'id'>) => {
+        const newTransaction: Transaction = {
+            ...transaction,
+            id: crypto.randomUUID(),
+        };
+        setAllTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    };
+
     const value = {
         allTransactions,
         expenseCategories,
@@ -93,7 +102,8 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         handleAddCategory,
         handleDeleteCategory,
         handleDownloadBackup,
-        handleRestoreBackup
+        handleRestoreBackup,
+        handleAddTransaction,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
