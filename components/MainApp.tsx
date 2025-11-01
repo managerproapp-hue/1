@@ -1,4 +1,4 @@
-import React, { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useMemo, lazy, Suspense, useEffect } from 'react';
 import { SpinnerIcon } from './icons';
 import { useAppContext } from '../contexts/AppContext';
 import Import from './Import'; // Importación directa del gestor unificado
@@ -13,18 +13,7 @@ const BudgetsView = lazy(() => import('./views/BudgetsView'));
 const SearchView = lazy(() => import('./views/SearchView'));
 
 
-type ActiveTab = 'dashboard' | 'importar' | 'base' | 'comparacion' | 'analisis' | 'buscador' | 'backup' | 'settings';
-
-const TABS: { id: ActiveTab; label: string }[] = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'importar', label: 'Importar Datos' },
-    { id: 'base', label: 'Base de Datos' },
-    { id: 'comparacion', label: 'Comparación' },
-    { id: 'analisis', label: 'Análisis' },
-    { id: 'buscador', label: 'Buscador' },
-    { id: 'backup', label: 'Copia de Seguridad' },
-    { id: 'settings', label: 'Configuración' },
-];
+type ActiveTab = 'dashboard' | 'importar' | 'sin-categorizar' | 'base' | 'comparacion' | 'analisis' | 'buscador' | 'backup' | 'settings';
 
 const MainApp: React.FC = () => {
   const { allTransactions, accounts } = useAppContext();
@@ -33,6 +22,22 @@ const MainApp: React.FC = () => {
   const [month, setMonth] = useState<number | 'all'>('all');
   const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>('all');
   const [searchFilters, setSearchFilters] = useState<{ category: string; term: string }>({ category: 'all', term: '' });
+  
+  const uncategorizedCount = useMemo(() => {
+    return allTransactions.filter(t => t.categoryId === 'cat-uncategorized').length;
+  }, [allTransactions]);
+
+  const TABS: { id: ActiveTab; label: string; badge?: number }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'importar', label: 'Importar Datos' },
+    { id: 'sin-categorizar', label: 'Sin Categorizar', badge: uncategorizedCount },
+    { id: 'base', label: 'Base de Datos' },
+    { id: 'comparacion', label: 'Comparación' },
+    { id: 'analisis', label: 'Análisis' },
+    { id: 'buscador', label: 'Buscador' },
+    { id: 'backup', label: 'Copia de Seguridad' },
+    { id: 'settings', label: 'Configuración' },
+  ];
   
   const filteredTransactionsByDate = useMemo(() => {
     return allTransactions.filter(t => {
@@ -50,6 +55,13 @@ const MainApp: React.FC = () => {
     }
     return filteredTransactionsByDate.filter(t => t.accountId === selectedAccountId);
   }, [filteredTransactionsByDate, selectedAccountId]);
+  
+  useEffect(() => {
+    if (activeTab === 'sin-categorizar') {
+      setSearchFilters({ category: 'cat-uncategorized', term: '' });
+    }
+  }, [activeTab]);
+
 
   const availableYears = useMemo(() => {
     const transactionYears = Array.from(new Set(allTransactions.map(t => new Date(t.date).getFullYear()))).sort((a, b) => b - a);
@@ -81,8 +93,16 @@ const MainApp: React.FC = () => {
   };
 
   const handleImportComplete = () => {
-    setActiveTab('buscador');
-    setSearchFilters({ category: 'cat-uncategorized', term: '' });
+    setActiveTab('sin-categorizar');
+  };
+  
+  const handleSearchFiltersChange = (newFilters: { category: string; term: string; }) => {
+    setSearchFilters(newFilters);
+    // Si estábamos en la pestaña dedicada a "sin categorizar", pero el usuario cambia
+    // el filtro a otra categoría, lo movemos a la pestaña genérica de "buscador".
+    if (activeTab === 'sin-categorizar' && newFilters.category !== 'cat-uncategorized') {
+        setActiveTab('buscador');
+    }
   };
 
 
@@ -98,8 +118,9 @@ const MainApp: React.FC = () => {
             return <AccountComparisonView transactions={filteredTransactionsByDate} />;
         case 'analisis':
             return <BudgetsView selectedYears={selectedYears} month={month} selectedAccountId={selectedAccountId} />;
+        case 'sin-categorizar':
         case 'buscador':
-            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={setSearchFilters} />;
+            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={handleSearchFiltersChange} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':
@@ -127,8 +148,11 @@ const MainApp: React.FC = () => {
         <nav className="mb-6 flex space-x-2 border-b border-slate-700 overflow-x-auto">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} 
-                    className={`px-4 py-2 font-medium text-lg transition-colors duration-200 whitespace-nowrap ${activeTab === tab.id ? 'text-violet-400 border-b-2 border-violet-400' : 'text-gray-400 hover:text-white'}`}>
+                    className={`px-4 py-2 font-medium text-lg transition-colors duration-200 whitespace-nowrap flex items-center ${activeTab === tab.id ? 'text-violet-400 border-b-2 border-violet-400' : 'text-gray-400 hover:text-white'}`}>
               {tab.label}
+              {tab.badge && tab.badge > 0 && (
+                  <span className="ml-2 bg-pink-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{tab.badge}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -146,7 +170,7 @@ const MainApp: React.FC = () => {
                 <button onClick={() => setMonth('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === 'all' ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Anual</button>
                 {months.map((m, i) => <button key={m} onClick={() => setMonth(i)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === i ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{m}</button>)}
             </div>
-             {['dashboard', 'base', 'analisis', 'buscador'].includes(activeTab) && accounts.length > 0 && (
+             {['dashboard', 'base', 'analisis', 'buscador', 'sin-categorizar'].includes(activeTab) && accounts.length > 0 && (
                 <div className="flex items-center space-x-2 flex-wrap gap-y-2 border-t border-slate-700 pt-4 mt-2">
                     <button onClick={() => setSelectedAccountId('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedAccountId === 'all' ? 'bg-sky-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Todas las Cuentas</button>
                     {accounts.map(acc => <button key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedAccountId === acc.id ? 'bg-sky-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{acc.accountName}</button>)}
