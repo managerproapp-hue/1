@@ -17,7 +17,6 @@ const applyAutomationRules = (transactions: StagedTransaction[], rules: Automati
     if (rules.length === 0) return transactions;
 
     return transactions.map(t => {
-        // Find the first matching rule
         for (const rule of rules) {
             if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
                 return { ...t, category: rule.categoryId };
@@ -137,8 +136,47 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
         setStep('review');
     };
     
-    const parseMappedRow = (row: string[], i: number): StagedTransaction => { /* ... (logic unchanged) */ return {} as StagedTransaction };
-    const parseAIRow = (t: any, i: number): StagedTransaction => { /* ... (logic unchanged) */ return {} as StagedTransaction };
+    const parseMappedRow = (row: string[], i: number): StagedTransaction => {
+        const amountStr = String(row[mapping.amount!]).replace(/[€,]/g, '').replace(',', '.');
+        const amount = parseFloat(amountStr);
+        const description = String(row[mapping.description!]);
+        const dateRaw = row[mapping.date!];
+        let dateObj = new Date(dateRaw);
+        
+        const isValid = !isNaN(amount) && description && !isNaN(dateObj.getTime());
+        const type = amount < 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
+        
+        return {
+            id: `staged-${i}`,
+            date: isValid ? dateObj.toISOString().split('T')[0] : 'Fecha inválida',
+            description,
+            amount: Math.abs(amount),
+            type,
+            category: type === TransactionType.EXPENSE ? 'Sin Categorizar' : 'Ingresos Varios',
+            isValid,
+            accountId: selectedAccountId,
+        };
+    };
+
+    const parseAIRow = (t: any, i: number): StagedTransaction => {
+        const amount = parseFloat(t.amount);
+        const description = String(t.description);
+        const dateObj = new Date(t.date);
+
+        const isValid = !isNaN(amount) && description && !isNaN(dateObj.getTime());
+        const type = amount < 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
+
+        return {
+            id: `staged-${i}`,
+            date: isValid ? dateObj.toISOString().split('T')[0] : 'Fecha inválida',
+            description,
+            amount: Math.abs(amount),
+            type,
+            category: type === TransactionType.EXPENSE ? 'Sin Categorizar' : 'Ingresos Varios',
+            isValid,
+            accountId: selectedAccountId,
+        };
+    };
 
     const handleAiCategorize = async () => {
         const toCategorize = stagedTransactions.filter(t => t.type === TransactionType.EXPENSE && t.category === 'Sin Categorizar');
@@ -195,7 +233,35 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
                     </div>
                 </div>
             </div>);
-            // Other cases...
+            case 'mapping': return (<div>
+                <h2 className="text-2xl font-semibold mb-2">Mapeo de Columnas</h2>
+                <p className="text-gray-400 mb-6">Ayúdanos a entender tu archivo. Asigna las columnas correctas.</p>
+                <div className="space-y-4">
+                    {(['date', 'description', 'amount'] as const).map(key => (<div key={key}><label className="block text-sm font-medium mb-1 capitalize">{key === 'date' ? 'Fecha' : key === 'description' ? 'Descripción' : 'Monto'}</label><select value={mapping[key] ?? ''} onChange={e => setMapping(prev => ({ ...prev, [key]: parseInt(e.target.value) }))} className="w-full bg-slate-700 border-slate-600 rounded-md py-2 px-3">{csvHeaders.map((h, i) => (<option key={i} value={i}>{h}</option>))}</select></div>))}
+                </div>
+                <div className="flex justify-between items-center mt-6">
+                    <button onClick={resetState} className="bg-slate-600 hover:bg-slate-700 font-semibold py-2 px-4 rounded-lg">Volver a Subir</button>
+                    <button onClick={handleMappingConfirm} className="bg-violet-600 hover:bg-violet-700 font-bold py-2 px-6 rounded-lg">Confirmar Mapeo</button>
+                </div>
+            </div>);
+            case 'review': return (<div>
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <h2 className="text-2xl font-semibold">Revisar y Confirmar Transacciones</h2>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleAiCategorize} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-sm font-semibold py-2 px-3 rounded-lg"><SparklesIcon className="w-4 h-4" /><span>Categorizar con IA</span></button>
+                    </div>
+                </div>
+                <div className="overflow-auto max-h-[50vh] bg-slate-900/50 rounded-lg border border-slate-700">
+                    <table className="w-full text-left">
+                        <thead className="sticky top-0 bg-slate-800"><tr>{['Fecha', 'Descripción', 'Monto (€)', 'Tipo', 'Categoría'].map(h => <th key={h} className="p-3 text-sm font-semibold">{h}</th>)}</tr></thead>
+                        <tbody>{stagedTransactions.map((t, i) => (<tr key={t.id} className="border-b border-slate-700 text-sm"><td className="p-2"><input type="date" value={t.date} onChange={e => updateStagedTransaction(t.id, 'date', e.target.value)} className="w-full bg-slate-700 border-slate-600 rounded p-1" /></td><td className="p-2"><input type="text" value={t.description} onChange={e => updateStagedTransaction(t.id, 'description', e.target.value)} className="w-full bg-slate-700 border-slate-600 rounded p-1" /></td><td className="p-2"><input type="number" value={t.amount} onChange={e => updateStagedTransaction(t.id, 'amount', parseFloat(e.target.value))} className="w-full bg-slate-700 border-slate-600 rounded p-1" /></td><td className="p-2"><select value={t.type} onChange={e => updateStagedTransaction(t.id, 'type', e.target.value)} className="w-full bg-slate-700 border-slate-600 rounded p-1"><option value={TransactionType.EXPENSE}>Gasto</option><option value={TransactionType.INCOME}>Ingreso</option></select></td><td className="p-2"><select value={t.category} onChange={e => updateStagedTransaction(t.id, 'category', e.target.value)} className="w-full bg-slate-700 border-slate-600 rounded p-1">{t.type === TransactionType.EXPENSE ? expenseCategories.map(c => <option key={c} value={c}>{c}</option>) : incomeCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></td></tr>))}</tbody>
+                    </table>
+                </div>
+                 <div className="flex justify-between items-center mt-6">
+                    <button onClick={resetState} className="bg-slate-600 hover:bg-slate-700 font-semibold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button onClick={handleConfirm} className="bg-violet-600 hover:bg-violet-700 font-bold py-2 px-6 rounded-lg">Confirmar e Importar ({stagedTransactions.length})</button>
+                </div>
+            </div>);
             default: return null;
         }
     };

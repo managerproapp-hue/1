@@ -74,7 +74,6 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
 
     const handleExportCSV = () => {
         const headers = ['Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría', 'Cuenta', 'Notas'];
-        const rows = transactions.map(t => [ /* ... */ ]);
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.join(',') + '\n' + transactions.map(t => [
             new Date(t.date).toLocaleDateString('es-ES'), `"${t.description.replace(/"/g, '""')}"`,
             t.amount.toString().replace('.', ','), t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
@@ -94,7 +93,16 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
         if (typeof window.XLSX === 'undefined') {
             addToast({ type: 'error', message: 'La librería de exportación a Excel no se ha cargado.' }); return;
         }
-        const ws = window.XLSX.utils.json_to_sheet(transactions.map(t => ({ /* ... */ })));
+        const sheetData = transactions.map(t => ({
+            'Fecha': new Date(t.date).toLocaleDateString('es-ES'),
+            'Descripción': t.description,
+            'Monto': t.type === TransactionType.EXPENSE ? -t.amount : t.amount,
+            'Tipo': t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
+            'Categoría': t.category,
+            'Cuenta': getAccountName(t.accountId),
+            'Notas': t.notes || ''
+        }));
+        const ws = window.XLSX.utils.json_to_sheet(sheetData);
         const wb = window.XLSX.utils.book_new();
         window.XLSX.utils.book_append_sheet(wb, ws, "Transacciones");
         window.XLSX.writeFile(wb, "transacciones.xlsx");
@@ -111,8 +119,15 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
         }
         doc.text("Reporte de Transacciones", 14, 16);
         (doc as any).autoTable({
-            head: [["Fecha", "Descripción", "Monto", "Tipo", "Categoría", "Cuenta", "Notas"]],
-            body: transactions.map(t => [ /* ... */ ]),
+            head: [["Fecha", "Descripción", "Monto", "Tipo", "Categoría", "Cuenta"]],
+            body: transactions.map(t => [
+                new Date(t.date).toLocaleDateString('es-ES'),
+                t.description,
+                `${t.type === TransactionType.EXPENSE ? '-' : '+'}${formatCurrency(t.amount)}`,
+                t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
+                t.category,
+                getAccountName(t.accountId)
+            ]),
             startY: 20, theme: 'grid', headStyles: { fillColor: [79, 70, 229] },
         });
         doc.save("transacciones.pdf");
