@@ -12,10 +12,11 @@ const AccountComparisonView = lazy(() => import('./views/AccountComparisonView')
 const BudgetsView = lazy(() => import('./views/BudgetsView'));
 const SearchView = lazy(() => import('./views/SearchView'));
 const AutomationRulesView = lazy(() => import('./views/AutomationRulesView'));
+const UncategorizedView = lazy(() => import('./views/UncategorizedView'));
 
 
 type ActiveTab = 'dashboard' | 'importar' | 'sin-categorizar' | 'base' | 'comparacion' | 'analisis' | 'buscador' | 'backup' | 'settings';
-type SearchSubView = 'list' | 'rules';
+type SubView = 'list' | 'rules';
 
 const MainApp: React.FC = () => {
   const { allTransactions, accounts } = useAppContext();
@@ -24,7 +25,7 @@ const MainApp: React.FC = () => {
   const [month, setMonth] = useState<number | 'all'>('all');
   const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>('all');
   const [searchFilters, setSearchFilters] = useState<{ category: string; term: string }>({ category: 'all', term: '' });
-  const [searchSubView, setSearchSubView] = useState<SearchSubView>('list');
+  const [subView, setSubView] = useState<SubView>('list');
   
   const uncategorizedCount = useMemo(() => {
     return allTransactions.filter(t => t.categoryId === 'cat-uncategorized').length;
@@ -61,11 +62,7 @@ const MainApp: React.FC = () => {
   
   useEffect(() => {
     // Reset sub-view when changing main tabs
-    setSearchSubView('list');
-
-    if (activeTab === 'sin-categorizar') {
-      setSearchFilters({ category: 'cat-uncategorized', term: '' });
-    }
+    setSubView('list');
   }, [activeTab]);
 
 
@@ -101,16 +98,12 @@ const MainApp: React.FC = () => {
   const handleImportComplete = () => {
     setActiveTab('sin-categorizar');
   };
-  
-  const handleSearchFiltersChange = (newFilters: { category: string; term: string; }) => {
-    setSearchFilters(newFilters);
-    if (activeTab === 'sin-categorizar' && newFilters.category !== 'cat-uncategorized') {
-        setActiveTab('buscador');
-    }
-  };
-
 
   const renderContent = () => {
+    if (subView === 'rules') {
+        return <AutomationRulesView onBack={() => setSubView('list')} />;
+    }
+
     switch(activeTab) {
         case 'dashboard':
             return <Dashboard transactions={filteredTransactions} onNavigateToSearch={handleNavigateToSearch} />;
@@ -123,11 +116,9 @@ const MainApp: React.FC = () => {
         case 'analisis':
             return <BudgetsView selectedYears={selectedYears} month={month} selectedAccountId={selectedAccountId} />;
         case 'sin-categorizar':
+            return <UncategorizedView transactions={filteredTransactions} onNavigateToRules={() => setSubView('rules')} />;
         case 'buscador':
-            if (searchSubView === 'rules') {
-                return <AutomationRulesView onBack={() => setSearchSubView('list')} />;
-            }
-            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={handleSearchFiltersChange} onNavigateToRules={() => setSearchSubView('rules')} />;
+            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={setSearchFilters} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':

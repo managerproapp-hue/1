@@ -11,7 +11,7 @@ interface AutomationRulesViewProps {
 }
 
 const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({ onBack }) => {
-    const { automationRules, handleDeleteAutomationRule, categories } = useAppContext();
+    const { automationRules, handleDeleteAutomationRule, categories, handleApplyRulesToAllTransactions } = useAppContext();
     const { addToast } = useToast();
     const { confirm } = useModal();
 
@@ -25,13 +25,28 @@ const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({ onBack }) => 
             addToast({ type: 'success', message: 'Regla de automatización eliminada.' });
         }
     };
+
+    const handleGlobalApply = async () => {
+        const confirmed = await confirm(
+            'Aplicar Reglas a Todo', 
+            `Esto recorrerá TODAS tus transacciones y aplicará las reglas. Puede tardar unos segundos. ¿Estás seguro?`
+        );
+        if (confirmed) {
+            const updatedCount = handleApplyRulesToAllTransactions();
+            if (updatedCount > 0) {
+                addToast({ type: 'success', message: `Se actualizaron ${updatedCount} transacciones en toda la base de datos.` });
+            } else {
+                addToast({ type: 'info', message: 'No se encontraron nuevas transacciones para actualizar.' });
+            }
+        }
+    };
     
     return (
         <>
             <div className="space-y-6 max-w-4xl mx-auto">
                 <button onClick={onBack} className="flex items-center space-x-2 text-sm text-violet-400 hover:text-violet-300 font-semibold mb-4">
                     <ChevronLeftIcon className="w-5 h-5" />
-                    <span>Volver a la Búsqueda</span>
+                    <span>Volver</span>
                 </button>
 
                 <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
@@ -40,10 +55,16 @@ const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({ onBack }) => 
                         Reglas de Automatización
                     </h2>
                     <p className="text-gray-400 mb-4 text-sm">Ahorra tiempo enseñando a la app cómo categorizar tus importaciones. Las reglas se aplican automáticamente al subir un archivo o al hacer clic en "Re-aplicar Reglas".</p>
-                    <button onClick={() => { setSelectedRule(undefined); setIsRuleModalOpen(true); }} className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg mb-4">
-                        <PlusCircleIcon className="w-5 h-5" />
-                        <span>Crear Nueva Regla</span>
-                    </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <button onClick={() => { setSelectedRule(undefined); setIsRuleModalOpen(true); }} className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg">
+                            <PlusCircleIcon className="w-5 h-5" />
+                            <span>Crear Nueva Regla</span>
+                        </button>
+                        <button onClick={handleGlobalApply} className="w-full flex items-center justify-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold py-2 px-4 rounded-lg">
+                            <SparklesIcon className="w-5 h-5" />
+                            <span>Aplicar a TODA la Base de Datos</span>
+                        </button>
+                    </div>
                     <div className="space-y-2">
                         {automationRules.map(rule => (
                             <div key={rule.id} className="flex justify-between items-center bg-slate-700 p-3 rounded-md">

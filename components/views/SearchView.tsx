@@ -15,11 +15,10 @@ interface SearchViewProps {
     transactions: Transaction[];
     filters: { category: string; term: string; }; // category is now categoryId
     onFiltersChange: (newFilters: { category: string; term: string; }) => void;
-    onNavigateToRules: () => void;
 }
 
-const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange, onNavigateToRules }) => {
-    const { categories, accounts, handleDeleteTransaction, handleReapplyAutomationRules, getCategoryWithDescendants, automationRules } = useAppContext();
+const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange }) => {
+    const { categories, accounts, handleDeleteTransaction, getCategoryWithDescendants, automationRules } = useAppContext();
     const { confirm } = useModal();
     const { addToast } = useToast();
     
@@ -85,29 +84,8 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
         return { total, count: searchResults.length, average: searchResults.length > 0 ? total / searchResults.length : 0 };
     }, [searchResults]);
 
-    const handleReapplyRulesClick = () => {
-        const transactionIdsToProcess = searchResults.map(t => t.id);
-        if (transactionIdsToProcess.length === 0) { 
-            addToast({ type: 'info', message: 'No hay transacciones en la vista actual para procesar.' }); 
-            return; 
-        }
-        
-        const { updatedCount, matchedButAlreadyCategorized } = handleReapplyAutomationRules(transactionIdsToProcess);
-
-        if (updatedCount > 0) {
-            addToast({ type: 'success', message: `${updatedCount} transacciones han sido re-categorizadas.` });
-        } else {
-            if (matchedButAlreadyCategorized > 0) {
-                 addToast({ type: 'info', message: `Se encontraron ${matchedButAlreadyCategorized} coincidencias, pero ya estaban en la categoría correcta.` });
-            } else {
-                 addToast({ type: 'info', message: 'No se encontraron coincidencias con tus reglas para estas transacciones.' });
-            }
-        }
-    };
-
     const renderCategoryOptions = () => {
-        const rootCategories = categories.filter(c => c.parentId === null).sort((a,b) => a.name.localeCompare(b.name));
-        // FIX: Replaced JSX.Element with React.ReactElement to resolve namespace issue.
+        const rootCategories = categories.filter(c => c.parentId === null && c.id !== 'cat-uncategorized').sort((a,b) => a.name.localeCompare(b.name));
         const options: React.ReactElement[] = [<option key="all" value="all">Todas las Categorías</option>];
         rootCategories.forEach(root => {
             options.push(<option key={root.id} value={root.id} className="font-bold">{root.name}</option>);
@@ -124,13 +102,7 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
     return (
         <div className="space-y-6">
             <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-                    <h2 className="text-2xl font-semibold">Buscador de Transacciones</h2>
-                    <button onClick={onNavigateToRules} className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold py-2 px-3 rounded-lg">
-                        <SparklesIcon className="w-4 h-4" />
-                        <span>Gestionar Reglas</span>
-                    </button>
-                </div>
+                <h2 className="text-2xl font-semibold mb-4">Buscador de Transacciones</h2>
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                     <div className="w-full md:w-1/3"><select value={filters.category} onChange={e => onFiltersChange({ ...filters, category: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500 h-full">{renderCategoryOptions()}</select></div>
                     <div className="relative w-full md:w-2/3"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon className="h-5 w-5 text-gray-400" /></div><input type="text" placeholder="Buscar por descripción o anotaciones..." value={filters.term} onChange={e => onFiltersChange({ ...filters, term: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 pl-10 pr-4 text-white focus:ring-violet-500 focus:border-violet-500"/></div>
@@ -142,7 +114,6 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
                     <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                         <h3 className="text-xl font-semibold text-violet-300">Resultados de la Búsqueda</h3>
                         <div className="flex items-center gap-2">
-                             {filters.category === 'cat-uncategorized' && (<button onClick={handleReapplyRulesClick} className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold py-2 px-3 rounded-lg"><SparklesIcon className="w-4 h-4" /><span>Re-aplicar Reglas</span></button>)}
                             <button onClick={handleClearSearch} className="flex items-center space-x-1 text-sm text-gray-400 hover:text-white"><XIcon className="w-4 h-4" /><span>Limpiar Búsqueda</span></button>
                         </div>
                     </div>

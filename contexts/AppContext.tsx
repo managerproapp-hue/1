@@ -114,6 +114,7 @@ interface AppContextType {
     handleUpdateAutomationRule: (rule: AutomationRule) => ActionResult;
     handleDeleteAutomationRule: (id: string) => void;
     handleReapplyAutomationRules: (transactionIds: string[]) => { updatedCount: number; matchedButAlreadyCategorized: number };
+    handleApplyRulesToAllTransactions: () => number;
     // New category handlers
     handleAddCategory: (category: Omit<Category, 'id'>) => ActionResult;
     handleUpdateCategory: (category: Category) => ActionResult;
@@ -240,6 +241,33 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return { updatedCount, matchedButAlreadyCategorized };
     }, [allTransactions, automationRules]);
 
+    const handleApplyRulesToAllTransactions = useCallback((): number => {
+        let updatedCount = 0;
+        const sortedRules = [...automationRules].sort((a, b) => b.keyword.length - a.keyword.length);
+
+        if (sortedRules.length === 0) return 0;
+
+        const updatedTransactions = allTransactions.map(t => {
+            let bestMatchRule: AutomationRule | null = null;
+            for (const rule of sortedRules) {
+                 if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.trim().toLowerCase())) {
+                    bestMatchRule = rule;
+                    break;
+                }
+            }
+             if (bestMatchRule && t.categoryId !== bestMatchRule.categoryId) {
+                updatedCount++;
+                return { ...t, categoryId: bestMatchRule.categoryId, automatedByRuleId: bestMatchRule.id };
+            }
+            return t;
+        });
+        
+        if (updatedCount > 0) {
+            setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        }
+        return updatedCount;
+    }, [allTransactions, automationRules]);
+
     const handleAddAutomationRule = useCallback((ruleData: Omit<AutomationRule, 'id'>): ActionResult => {
         if (automationRules.some(r => r.keyword.toLowerCase() === ruleData.keyword.toLowerCase())) { return { success: false, message: `Ya existe una regla para la palabra clave "${ruleData.keyword}".` }; }
         setAutomationRules(prev => [...prev, { ...ruleData, id: crypto.randomUUID() }]);
@@ -317,7 +345,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         accounts, handleAddAccount, handleUpdateAccount, handleDeleteAccount,
         automationRules, handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule,
         handleReapplyAutomationRules, handleAddCategory, handleUpdateCategory, handleDeleteCategory,
-        getCategoryWithDescendants,
+        getCategoryWithDescendants, handleApplyRulesToAllTransactions,
     }), [
         allTransactions, categories, goals, accounts, automationRules,
         handleConfirmImport, handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
@@ -325,7 +353,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         handleAddAccount, handleUpdateAccount, handleDeleteAccount,
         handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule,
         handleReapplyAutomationRules, handleAddCategory, handleUpdateCategory, handleDeleteCategory,
-        getCategoryWithDescendants
+        getCategoryWithDescendants, handleApplyRulesToAllTransactions,
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
