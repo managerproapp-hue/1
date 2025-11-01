@@ -134,8 +134,9 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 
                 if (currentDate < recurring.startDate || (recurring.endDate && currentDate > recurring.endDate)) continue;
 
+                const dayToUse = recurring.dayOfMonth || 1;
                 const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-                const transactionDay = Math.min(recurring.dayOfMonth, lastDayOfMonth);
+                const transactionDay = Math.min(dayToUse, lastDayOfMonth);
                 const transactionDate = new Date(year, month, transactionDay);
 
                 if (transactionDate > today) continue;
@@ -151,7 +152,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
                         id: crypto.randomUUID(),
                         date: transactionDate,
                         description: recurring.description,
-                        amount: recurring.amount,
+                        amount: recurring.amount ?? 0,
                         type: recurring.type,
                         category: recurring.category,
                         accountId: recurring.accountId,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RecurringTransaction, TransactionType } from '../../types';
 import { useAppContext } from '../../contexts/AppContext';
+import { useToast } from '../../contexts/ToastContext';
 import { XIcon } from '../icons';
 
 interface AddRecurringTransactionModalProps {
@@ -14,6 +15,7 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
         accounts, expenseCategories, incomeCategories, 
         handleAddRecurringTransaction, handleUpdateRecurringTransaction 
     } = useAppContext();
+    const { addToast } = useToast();
     const isEditMode = !!recurringTransactionToEdit;
 
     const formatDateForInput = (date: Date) => date.toISOString().split('T')[0];
@@ -23,7 +25,7 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
     const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
     const [category, setCategory] = useState('');
     const [accountId, setAccountId] = useState('');
-    const [dayOfMonth, setDayOfMonth] = useState<number | ''>(1);
+    const [dayOfMonth, setDayOfMonth] = useState<number | ''>('');
     const [startDate, setStartDate] = useState(formatDateForInput(new Date()));
     const [endDate, setEndDate] = useState('');
     const [hasEndDate, setHasEndDate] = useState(false);
@@ -32,11 +34,11 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
         if (isOpen) {
             if (isEditMode) {
                 setDescription(recurringTransactionToEdit.description);
-                setAmount(recurringTransactionToEdit.amount);
+                setAmount(recurringTransactionToEdit.amount ?? '');
                 setType(recurringTransactionToEdit.type);
                 setCategory(recurringTransactionToEdit.category);
                 setAccountId(recurringTransactionToEdit.accountId);
-                setDayOfMonth(recurringTransactionToEdit.dayOfMonth);
+                setDayOfMonth(recurringTransactionToEdit.dayOfMonth ?? '');
                 setStartDate(formatDateForInput(new Date(recurringTransactionToEdit.startDate)));
                 setHasEndDate(!!recurringTransactionToEdit.endDate);
                 setEndDate(recurringTransactionToEdit.endDate ? formatDateForInput(new Date(recurringTransactionToEdit.endDate)) : '');
@@ -47,7 +49,7 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
                 setType(TransactionType.EXPENSE);
                 setCategory(expenseCategories[0] || '');
                 setAccountId(accounts[0]?.id || '');
-                setDayOfMonth(1);
+                setDayOfMonth('');
                 setStartDate(formatDateForInput(new Date()));
                 setEndDate('');
                 setHasEndDate(false);
@@ -64,27 +66,41 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!description || amount === '' || amount <= 0 || !accountId || dayOfMonth === '' || dayOfMonth < 1 || dayOfMonth > 31) {
-            alert('Por favor, complete todos los campos requeridos correctamente.');
+        if (!description || !accountId || !startDate) {
+            addToast({ type: 'error', message: 'Descripción, cuenta y fecha de inicio son obligatorias.' });
+            return;
+        }
+        if (dayOfMonth !== '' && (Number(dayOfMonth) < 1 || Number(dayOfMonth) > 31)) {
+            addToast({ type: 'error', message: 'El día del mes debe ser un número entre 1 y 31.' });
+            return;
+        }
+        if (amount !== '' && Number(amount) < 0) {
+            addToast({ type: 'error', message: 'El monto no puede ser negativo.' });
+            return;
+        }
+        if (hasEndDate && endDate && new Date(startDate) > new Date(endDate)) {
+            addToast({ type: 'error', message: 'La fecha de fin no puede ser anterior a la de inicio.' });
             return;
         }
 
-        const recurringData: Omit<RecurringTransaction, 'id'> = {
+        const recurringData = {
             description,
-            amount: amount as number,
+            amount: amount === '' ? undefined : Number(amount),
             type,
             category,
             accountId,
-            frequency: 'monthly',
-            dayOfMonth: dayOfMonth as number,
+            frequency: 'monthly' as const,
+            dayOfMonth: dayOfMonth === '' ? undefined : Number(dayOfMonth),
             startDate: new Date(`${startDate}T00:00:00`),
             endDate: hasEndDate && endDate ? new Date(`${endDate}T00:00:00`) : undefined,
         };
         
         if (isEditMode) {
             handleUpdateRecurringTransaction({ ...recurringData, id: recurringTransactionToEdit.id });
+            addToast({ type: 'success', message: 'Transacción recurrente actualizada.' });
         } else {
             handleAddRecurringTransaction(recurringData);
+            addToast({ type: 'success', message: 'Transacción recurrente añadida.' });
         }
         onClose();
     };
@@ -102,7 +118,7 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
                     {/* Basic Info */}
                     <div><label htmlFor="rec-desc" className="block text-sm font-medium mb-1">Descripción</label><input id="rec-desc" type="text" value={description} onChange={e => setDescription(e.target.value)} required className="w-full input-style" /></div>
                     <div className="grid grid-cols-2 gap-4">
-                        <div><label htmlFor="rec-amount" className="block text-sm font-medium mb-1">Monto (€)</label><input id="rec-amount" type="number" value={amount} onChange={e => setAmount(parseFloat(e.target.value) || '')} min="0.01" step="0.01" required className="w-full input-style" /></div>
+                        <div><label htmlFor="rec-amount" className="block text-sm font-medium mb-1">Monto (€)</label><input id="rec-amount" type="number" value={amount} onChange={e => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="0.00 (Opcional)" min="0" step="0.01" className="w-full input-style" /></div>
                         <div><label className="block text-sm font-medium mb-1">Tipo</label><div className="flex space-x-4 items-center h-full"><label className="flex items-center"><input type="radio" name="type" value={TransactionType.EXPENSE} checked={type === TransactionType.EXPENSE} onChange={() => setType(TransactionType.EXPENSE)} className="radio-style" /><span className="ml-2">Gasto</span></label><label className="flex items-center"><input type="radio" name="type" value={TransactionType.INCOME} checked={type === TransactionType.INCOME} onChange={() => setType(TransactionType.INCOME)} className="radio-style" /><span className="ml-2">Ingreso</span></label></div></div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -114,7 +130,7 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
                     <div className="border-t border-slate-700 pt-4">
                         <h3 className="text-lg font-semibold mb-2">Reglas de Recurrencia</h3>
                         <div className="grid grid-cols-2 gap-4">
-                             <div><label htmlFor="rec-day" className="block text-sm font-medium mb-1">Día del Mes</label><input id="rec-day" type="number" value={dayOfMonth} onChange={e => setDayOfMonth(parseInt(e.target.value) || '')} min="1" max="31" required className="w-full input-style" /></div>
+                             <div><label htmlFor="rec-day" className="block text-sm font-medium mb-1">Día del Mes</label><input id="rec-day" type="number" value={dayOfMonth} placeholder="1 (Opcional)" onChange={e => setDayOfMonth(e.target.value === '' ? '' : parseInt(e.target.value, 10))} min="1" max="31" className="w-full input-style" /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-4 mt-4">
                             <div><label htmlFor="rec-start" className="block text-sm font-medium mb-1">Fecha de Inicio</label><input id="rec-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required className="w-full input-style" /></div>

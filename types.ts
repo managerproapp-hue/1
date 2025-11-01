@@ -54,12 +54,12 @@ export interface Account {
 export interface RecurringTransaction {
   id: string;
   description: string;
-  amount: number;
+  amount?: number;
   type: TransactionType;
   category: string;
   accountId: string;
   frequency: 'monthly'; // Por ahora solo mensual, extensible en el futuro
-  dayOfMonth: number;
+  dayOfMonth?: number;
   startDate: Date;
   endDate?: Date;
 }
