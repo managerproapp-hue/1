@@ -13,7 +13,6 @@ export interface Transaction {
   category: string;
   accountId: string;
   notes?: string;
-  recurringTransactionId?: string; // ID de la transacción recurrente de origen
 }
 
 export interface ChartData {
@@ -51,14 +50,9 @@ export interface Account {
   accountNumber?: string;
 }
 
-export interface RecurringTransaction {
+export interface AutomationRule {
   id: string;
-  description: string;
-  amount?: number;
+  keyword: string;
+  categoryId: string;
   type: TransactionType;
-  category: string;
-  frequency: 'monthly'; // Por ahora solo mensual, extensible en el futuro
-  dayOfMonth?: number;
-  startDate: Date;
-  endDate?: Date;
 }

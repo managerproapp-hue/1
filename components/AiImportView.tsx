@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { StagedTransaction, Transaction, TransactionType, Account } from '../types';
+import { StagedTransaction, Transaction, TransactionType, Account, AutomationRule } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import { useToast } from '../contexts/ToastContext';
 import { SparklesIcon, SpinnerIcon, UploadCloudIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
@@ -13,8 +13,22 @@ declare global {
 type Step = 'upload' | 'mapping' | 'review';
 type CSVMapping = { date: number | null; description: number | null; amount: number | null; };
 
+const applyAutomationRules = (transactions: StagedTransaction[], rules: AutomationRule[]): StagedTransaction[] => {
+    if (rules.length === 0) return transactions;
+
+    return transactions.map(t => {
+        // Find the first matching rule
+        for (const rule of rules) {
+            if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                return { ...t, category: rule.categoryId };
+            }
+        }
+        return t;
+    });
+};
+
 const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => void }> = ({ setActiveTab }) => {
-    const { handleConfirmImport, expenseCategories, incomeCategories, accounts } = useAppContext();
+    const { handleConfirmImport, expenseCategories, incomeCategories, accounts, automationRules } = useAppContext();
     const { addToast } = useToast();
     
     const [step, setStep] = useState<Step>('upload');
@@ -92,7 +106,12 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema } });
             const parsedTransactions = JSON.parse(response.text.trim());
             if (!Array.isArray(parsedTransactions)) throw new Error("La respuesta de la IA no es un array.");
-            setStagedTransactions(parsedTransactions.map(parseAIRow).filter(t => t.isValid)); setStep('review');
+            
+            const initialStaged = parsedTransactions.map(parseAIRow).filter(t => t.isValid);
+            const autoCategorized = applyAutomationRules(initialStaged, automationRules);
+            
+            setStagedTransactions(autoCategorized); 
+            setStep('review');
         } catch (error) {
             console.error("Error con IA:", error); addToast({ type: 'error', message: 'Error al procesar los datos con la IA.' });
         } finally { setIsLoading(false); }
@@ -112,7 +131,10 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
         if (mapping.date === null || mapping.description === null || mapping.amount === null) {
             addToast({ type: 'warning', message: 'Por favor, mapea Fecha, Descripción y Monto.' }); return;
         }
-        setStagedTransactions(csvData.map(parseMappedRow).filter(t => t.isValid)); setStep('review');
+        const initialStaged = csvData.map(parseMappedRow).filter(t => t.isValid);
+        const autoCategorized = applyAutomationRules(initialStaged, automationRules);
+        setStagedTransactions(autoCategorized); 
+        setStep('review');
     };
     
     const parseMappedRow = (row: string[], i: number): StagedTransaction => { /* ... (logic unchanged) */ return {} as StagedTransaction };

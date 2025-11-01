@@ -1,8 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, FC, useEffect } from 'react';
-import { Transaction, Goal, Account, RecurringTransaction, TransactionType } from '../types';
+import { Transaction, Goal, Account, AutomationRule, TransactionType } from '../types';
 
 const STORAGE_KEY = 'budget-app-data';
-const RECURRING_CHECK_KEY = 'budget-app-last-recurring-check';
 
 const INITIAL_EXPENSE_CATEGORIES = [
   'Sin Categorizar', 'Gastos niñas', 'Supermercados', 'Gasolina', 'Seguros', 'Ropa / Otros', 'Teléfono / Internet', 'TV de Pago', 'Agua', 'Manutención', 'Prestamos', 'Luz', 'Mascotas', 'Ayuntamiento', 'Ahorros', 'Vivienda', 'Transporte', 'Comida',
@@ -18,7 +17,7 @@ interface AppState {
     incomeCategories: string[];
     goals: Goal[];
     accounts: Account[];
-    recurringTransactions: RecurringTransaction[];
+    automationRules: AutomationRule[];
 }
 
 interface ActionResult {
@@ -50,10 +49,10 @@ interface AppContextType {
     handleAddAccount: (account: Omit<Account, 'id'>) => void;
     handleUpdateAccount: (account: Account) => ActionResult;
     handleDeleteAccount: (id: string) => ActionResult;
-    recurringTransactions: RecurringTransaction[];
-    handleAddRecurringTransaction: (recurring: Omit<RecurringTransaction, 'id'>) => void;
-    handleUpdateRecurringTransaction: (recurring: RecurringTransaction) => void;
-    handleDeleteRecurringTransaction: (id: string) => void;
+    automationRules: AutomationRule[];
+    handleAddAutomationRule: (rule: Omit<AutomationRule, 'id'>) => ActionResult;
+    handleUpdateAutomationRule: (rule: AutomationRule) => ActionResult;
+    handleDeleteAutomationRule: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -68,28 +67,26 @@ const loadInitialState = (): AppState => {
                 incomeCategories: INITIAL_INCOME_CATEGORIES,
                 goals: [],
                 accounts: [],
-                recurringTransactions: [],
+                automationRules: [],
             };
         }
         const storedState = JSON.parse(serializedState);
-        const loadedAccounts = storedState.accounts || [];
         
         const loadedTransactions = (storedState.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) }));
-        const loadedRecurring = (storedState.recurringTransactions || []).map((rtx: any) => ({ ...rtx, startDate: new Date(rtx.startDate), endDate: rtx.endDate ? new Date(rtx.endDate) : undefined }));
 
         return {
             allTransactions: loadedTransactions,
             expenseCategories: storedState.expenseCategories || INITIAL_EXPENSE_CATEGORIES,
             incomeCategories: storedState.incomeCategories || INITIAL_INCOME_CATEGORIES,
             goals: storedState.goals || [],
-            accounts: loadedAccounts,
-            recurringTransactions: loadedRecurring,
+            accounts: storedState.accounts || [],
+            automationRules: storedState.automationRules || [],
         };
     } catch (error) {
         console.error("Could not load state from localStorage", error);
         return {
             allTransactions: [], expenseCategories: INITIAL_EXPENSE_CATEGORIES, incomeCategories: INITIAL_INCOME_CATEGORIES,
-            goals: [], accounts: [], recurringTransactions: [],
+            goals: [], accounts: [], automationRules: [],
         };
     }
 };
@@ -101,85 +98,36 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const [incomeCategories, setIncomeCategories] = useState<string[]>(initialState.incomeCategories);
     const [accounts, setAccounts] = useState<Account[]>(initialState.accounts);
     const [goals, setGoals] = useState<Goal[]>(initialState.goals);
-    const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>(initialState.recurringTransactions);
+    const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialState.automationRules);
 
     useEffect(() => {
         try {
             const stateToSave = {
-                allTransactions, expenseCategories, incomeCategories, goals, accounts, recurringTransactions,
+                allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (error) {
             console.error("Could not save state to localStorage", error);
         }
-    }, [allTransactions, expenseCategories, incomeCategories, goals, accounts, recurringTransactions]);
+    }, [allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules]);
 
-    useEffect(() => {
-        const lastCheckStr = localStorage.getItem(RECURRING_CHECK_KEY);
-        const lastCheckDate = lastCheckStr ? new Date(lastCheckStr) : new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
-        const today = new Date();
-        
-        if (recurringTransactions.length === 0 || accounts.length === 0) {
-             localStorage.setItem(RECURRING_CHECK_KEY, today.toISOString());
-             return; // No need to run if no recurring tx or accounts exist
+    const handleAddAutomationRule = (ruleData: Omit<AutomationRule, 'id'>): ActionResult => {
+        if (automationRules.some(r => r.keyword.toLowerCase() === ruleData.keyword.toLowerCase())) {
+            return { success: false, message: `Ya existe una regla para la palabra clave "${ruleData.keyword}".` };
         }
-
-        const newTransactions: Transaction[] = [];
-        let currentDate = new Date(lastCheckDate.getFullYear(), lastCheckDate.getMonth(), 1);
-
-        while (currentDate <= today) {
-            for (const recurring of recurringTransactions) {
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                
-                if (currentDate < recurring.startDate || (recurring.endDate && currentDate > recurring.endDate)) continue;
-
-                const dayToUse = recurring.dayOfMonth || 1;
-                const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-                const transactionDay = Math.min(dayToUse, lastDayOfMonth);
-                const transactionDate = new Date(year, month, transactionDay);
-
-                if (transactionDate > today) continue;
-
-                const alreadyExists = allTransactions.some(t => 
-                    t.recurringTransactionId === recurring.id &&
-                    new Date(t.date).getFullYear() === year &&
-                    new Date(t.date).getMonth() === month
-                );
-
-                if (!alreadyExists) {
-                    newTransactions.push({
-                        id: crypto.randomUUID(),
-                        date: transactionDate,
-                        description: recurring.description,
-                        amount: recurring.amount ?? 0,
-                        type: recurring.type,
-                        category: recurring.category,
-                        accountId: accounts[0].id, // Assign to the first account by default
-                        recurringTransactionId: recurring.id,
-                    });
-                }
-            }
-            currentDate.setMonth(currentDate.getMonth() + 1);
-        }
-
-        if (newTransactions.length > 0) {
-            setAllTransactions(prev => [...prev, ...newTransactions].sort((a, b) => b.date.getTime() - a.date.getTime()));
-        }
-
-        localStorage.setItem(RECURRING_CHECK_KEY, today.toISOString());
-    }, []); // Runs once on app load
-
-
-    const handleAddRecurringTransaction = (recurringData: Omit<RecurringTransaction, 'id'>) => {
-        const newRecurring: RecurringTransaction = { ...recurringData, id: crypto.randomUUID() };
-        setRecurringTransactions(prev => [...prev, newRecurring]);
+        const newRule: AutomationRule = { ...ruleData, id: crypto.randomUUID() };
+        setAutomationRules(prev => [...prev, newRule]);
+        return { success: true };
     };
-    const handleUpdateRecurringTransaction = (updatedRecurring: RecurringTransaction) => {
-        setRecurringTransactions(prev => prev.map(r => r.id === updatedRecurring.id ? updatedRecurring : r));
+    const handleUpdateAutomationRule = (updatedRule: AutomationRule): ActionResult => {
+        if (automationRules.some(r => r.id !== updatedRule.id && r.keyword.toLowerCase() === updatedRule.keyword.toLowerCase())) {
+            return { success: false, message: `Ya existe otra regla para la palabra clave "${updatedRule.keyword}".` };
+        }
+        setAutomationRules(prev => prev.map(r => r.id === updatedRule.id ? updatedRule : r));
+        return { success: true };
     };
-    const handleDeleteRecurringTransaction = (id: string) => {
-        setRecurringTransactions(prev => prev.filter(r => r.id !== id));
+    const handleDeleteAutomationRule = (id: string) => {
+        setAutomationRules(prev => prev.filter(r => r.id !== id));
     };
 
     const handleConfirmImport = (newTransactions: Transaction[]): ActionResult => {
@@ -205,12 +153,14 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
         setExpenseCategories(prev => prev.map(c => c === oldCategory ? newCategory.trim() : c).sort());
         setAllTransactions(prev => prev.map(t => t.category === oldCategory ? { ...t, category: newCategory.trim() } : t));
+        setAutomationRules(prev => prev.map(r => r.categoryId === oldCategory ? { ...r, categoryId: newCategory.trim() } : r));
         return { success: true, message: 'Categoría actualizada.' };
     };
 
     const handleDeleteExpenseCategory = (category: string) => {
         setExpenseCategories(prev => prev.filter(c => c !== category));
         setAllTransactions(prev => prev.map(t => t.category === category ? { ...t, category: 'Sin Categorizar' } : t));
+        setAutomationRules(prev => prev.filter(r => r.categoryId !== category));
     };
 
     const handleAddIncomeCategory = (newCategory: string): ActionResult => {
@@ -229,17 +179,19 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
         setIncomeCategories(prev => prev.map(c => c === oldCategory ? newCategory.trim() : c).sort());
         setAllTransactions(prev => prev.map(t => t.category === oldCategory && t.type === TransactionType.INCOME ? { ...t, category: newCategory.trim() } : t));
+         setAutomationRules(prev => prev.map(r => r.categoryId === oldCategory ? { ...r, categoryId: newCategory.trim() } : r));
         return { success: true, message: 'Categoría actualizada.' };
     };
 
     const handleDeleteIncomeCategory = (category: string) => {
         setIncomeCategories(prev => prev.filter(c => c !== category));
         setAllTransactions(prev => prev.map(t => t.category === category && t.type === TransactionType.INCOME ? { ...t, category: 'Ingresos Varios' } : t));
+        setAutomationRules(prev => prev.filter(r => r.categoryId !== category));
     };
 
     const handleDownloadBackup = (): ActionResult => {
         try {
-            const stateToSave = { allTransactions, expenseCategories, incomeCategories, goals, accounts, recurringTransactions };
+            const stateToSave = { allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules };
             const dataStr = JSON.stringify(stateToSave, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
             const exportFileDefaultName = `budget_backup_${new Date().toISOString().slice(0, 10)}.json`;
@@ -270,7 +222,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 setIncomeCategories(restoredState.incomeCategories || INITIAL_INCOME_CATEGORIES);
                 setGoals(restoredState.goals || []);
                 setAccounts(restoredState.accounts || []);
-                setRecurringTransactions((restoredState.recurringTransactions || []).map((rtx: any) => ({ ...rtx, startDate: new Date(rtx.startDate), endDate: rtx.endDate ? new Date(rtx.endDate) : undefined })));
+                setAutomationRules(restoredState.automationRules || []);
                 
                 callback({ success: true, message: 'Copia de seguridad restaurada con éxito.' });
             } catch (error) {
@@ -333,7 +285,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
         handleDeleteTransaction, goals, handleAddGoal, handleUpdateGoal, handleDeleteGoal,
         accounts, handleAddAccount, handleUpdateAccount, handleDeleteAccount,
-        recurringTransactions, handleAddRecurringTransaction, handleUpdateRecurringTransaction, handleDeleteRecurringTransaction
+        automationRules, handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
