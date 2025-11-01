@@ -253,14 +253,21 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             ...transaction,
             id: crypto.randomUUID(),
         };
-        setAllTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setAllTransactions(prevTransactions => {
+            const updatedTransactions = [newTransaction, ...prevTransactions];
+            updatedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            return updatedTransactions;
+        });
     };
 
     const handleUpdateTransaction = (updatedTransaction: Transaction) => {
-        setAllTransactions(prev =>
-            prev.map(t => (t.id === updatedTransaction.id ? updatedTransaction : t))
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        );
+        setAllTransactions(prevTransactions => {
+            const updatedTransactions = prevTransactions.map(t =>
+                t.id === updatedTransaction.id ? updatedTransaction : t
+            );
+            updatedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            return updatedTransactions;
+        });
     };
 
     const handleDeleteTransaction = (id: string) => {
