@@ -7,8 +7,8 @@ import AddTransactionModal from '../modals/AddTransactionModal';
 const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (date: Date) => new Date(date).toLocaleDateString('es-ES');
 
-const SearchView: React.FC = () => {
-    const { allTransactions, expenseCategories, incomeCategories, accounts, handleDeleteTransaction } = useAppContext();
+const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
+    const { expenseCategories, incomeCategories, accounts, handleDeleteTransaction } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,7 +43,7 @@ const SearchView: React.FC = () => {
             return []; // No mostrar resultados si no hay búsqueda activa
         }
 
-        let filtered = allTransactions;
+        let filtered = transactions;
 
         // 1. Filtrar por categoría
         if (selectedCategory !== 'all') {
@@ -60,7 +60,7 @@ const SearchView: React.FC = () => {
         }
 
         return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [selectedCategory, searchTerm, allTransactions]);
+    }, [selectedCategory, searchTerm, transactions]);
 
     const resultMetrics = useMemo(() => {
         if (searchResults.length === 0) {
