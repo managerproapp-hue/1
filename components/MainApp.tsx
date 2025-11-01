@@ -66,7 +66,7 @@ const MainApp: React.FC = () => {
         case 'comparacion':
             return <AccountComparisonView transactions={filteredTransactionsByDate} />;
         case 'analisis':
-            return <BudgetsView transactions={filteredTransactions} />;
+            return <BudgetsView transactions={filteredTransactions} month={month} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':
