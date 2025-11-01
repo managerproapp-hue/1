@@ -83,7 +83,7 @@ const SettingsView: React.FC = () => {
                                 <div>
                                     <p className={`font-semibold ${rtx.type === TransactionType.INCOME ? 'text-emerald-300' : 'text-rose-300'}`}>{rtx.description}</p>
                                     <p className="text-sm text-gray-400">
-                                        {formatCurrency(rtx.amount)} cada día {rtx.dayOfMonth} del mes
+                                        {rtx.amount ? formatCurrency(rtx.amount) : 'Monto variable'} cada día {rtx.dayOfMonth ?? 'variable'} del mes
                                     </p>
                                 </div>
                                 <div className="flex items-center space-x-3">
