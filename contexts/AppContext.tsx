@@ -53,6 +53,7 @@ interface AppContextType {
     handleAddAutomationRule: (rule: Omit<AutomationRule, 'id'>) => ActionResult;
     handleUpdateAutomationRule: (rule: AutomationRule) => ActionResult;
     handleDeleteAutomationRule: (id: string) => void;
+    handleReapplyAutomationRules: (transactionIds: string[]) => { updatedCount: number };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -110,6 +111,29 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             console.error("Could not save state to localStorage", error);
         }
     }, [allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules]);
+
+    const handleReapplyAutomationRules = (transactionIds: string[]): { updatedCount: number } => {
+        const idsToUpdate = new Set(transactionIds);
+        let updatedCount = 0;
+    
+        const updatedTransactions = allTransactions.map(t => {
+            if (idsToUpdate.has(t.id)) {
+                for (const rule of automationRules) {
+                    if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                        if (t.category !== rule.categoryId) {
+                            updatedCount++;
+                            return { ...t, category: rule.categoryId }; 
+                        }
+                        break; // Rule found, no need to check others for this transaction
+                    }
+                }
+            }
+            return t; 
+        });
+    
+        setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        return { updatedCount };
+    };
 
     const handleAddAutomationRule = (ruleData: Omit<AutomationRule, 'id'>): ActionResult => {
         if (automationRules.some(r => r.keyword.toLowerCase() === ruleData.keyword.toLowerCase())) {
@@ -285,7 +309,8 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
         handleDeleteTransaction, goals, handleAddGoal, handleUpdateGoal, handleDeleteGoal,
         accounts, handleAddAccount, handleUpdateAccount, handleDeleteAccount,
-        automationRules, handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule
+        automationRules, handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule,
+        handleReapplyAutomationRules
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

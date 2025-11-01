@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { SearchIcon, XIcon, PencilIcon, TrashIcon } from '../icons';
+import { SearchIcon, XIcon, PencilIcon, TrashIcon, SparklesIcon } from '../icons';
 import { Transaction, TransactionType } from '../../types';
 import AddTransactionModal from '../modals/AddTransactionModal';
 import { useModal } from '../../contexts/ModalContext';
@@ -18,7 +18,7 @@ interface SearchViewProps {
 }
 
 const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange }) => {
-    const { expenseCategories, incomeCategories, accounts, handleDeleteTransaction } = useAppContext();
+    const { expenseCategories, incomeCategories, accounts, handleDeleteTransaction, handleReapplyAutomationRules } = useAppContext();
     const { confirm } = useModal();
     const { addToast } = useToast();
     
@@ -123,6 +123,20 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
         return { total, count, average };
     }, [searchResults]);
 
+    const handleReapplyRulesClick = () => {
+        const transactionIdsToProcess = searchResults.map(t => t.id);
+        if (transactionIdsToProcess.length === 0) {
+            addToast({ type: 'info', message: 'No hay transacciones "Sin Categorizar" para procesar.' });
+            return;
+        }
+        const { updatedCount } = handleReapplyAutomationRules(transactionIdsToProcess);
+        if (updatedCount > 0) {
+            addToast({ type: 'success', message: `${updatedCount} transacciones han sido re-categorizadas.` });
+        } else {
+            addToast({ type: 'info', message: 'No se aplicaron nuevas categorías.' });
+        }
+    };
+
     const isSearchActive = filters.category !== 'all' || filters.term.trim() !== '';
 
     return (
@@ -160,12 +174,20 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
 
             {isSearchActive && (
                 <div className="bg-slate-800 p-6 rounded-xl shadow-lg animate-fade-in">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                         <h3 className="text-xl font-semibold text-violet-300">Resultados de la Búsqueda</h3>
-                        <button onClick={handleClearSearch} className="flex items-center space-x-1 text-sm text-gray-400 hover:text-white">
-                            <XIcon className="w-4 h-4" />
-                            <span>Limpiar Búsqueda</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                             {filters.category === 'Sin Categorizar' && (
+                                <button onClick={handleReapplyRulesClick} className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold py-2 px-3 rounded-lg">
+                                    <SparklesIcon className="w-4 h-4" />
+                                    <span>Re-aplicar Reglas</span>
+                                </button>
+                            )}
+                            <button onClick={handleClearSearch} className="flex items-center space-x-1 text-sm text-gray-400 hover:text-white">
+                                <XIcon className="w-4 h-4" />
+                                <span>Limpiar Búsqueda</span>
+                            </button>
+                        </div>
                     </div>
 
                     {searchResults.length > 0 ? (
