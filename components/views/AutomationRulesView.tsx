@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { PlusCircleIcon, PencilIcon, TrashIcon, SparklesIcon, ChevronLeftIcon } from '../icons';
+import React, { useState, useMemo } from 'react';
+import { PlusCircleIcon, PencilIcon, TrashIcon, SparklesIcon, ChevronLeftIcon, SearchIcon } from '../icons';
 import { useAppContext } from '../../contexts/AppContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useModal } from '../../contexts/ModalContext';
@@ -17,6 +17,15 @@ const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({ onBack }) => 
 
     const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
     const [selectedRule, setSelectedRule] = useState<AutomationRule | undefined>(undefined);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredAndSortedRules = useMemo(() => {
+        return [...automationRules]
+            .reverse() // Newest first
+            .filter(rule => 
+                rule.keyword.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+    }, [automationRules, searchTerm]);
 
     const onDeleteRule = async (rule: AutomationRule) => {
         const confirmed = await confirm('Eliminar Regla', `¿Seguro que quieres eliminar la regla para "${rule.keyword}"?`);
@@ -65,8 +74,22 @@ const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({ onBack }) => 
                             <span>Aplicar a TODA la Base de Datos</span>
                         </button>
                     </div>
+
+                    <div className="relative my-4">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <SearchIcon className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por palabra clave..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 pl-10 pr-4 text-white focus:ring-violet-500 focus:border-violet-500"
+                        />
+                    </div>
+                    
                     <div className="space-y-2">
-                        {automationRules.map(rule => (
+                        {filteredAndSortedRules.map(rule => (
                             <div key={rule.id} className="flex justify-between items-center bg-slate-700 p-3 rounded-md">
                                 <div>
                                     <p className="font-semibold text-white">Si la descripción contiene: <span className="font-bold text-violet-300">"{rule.keyword}"</span></p>
@@ -78,6 +101,9 @@ const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({ onBack }) => 
                                 </div>
                             </div>
                         ))}
+                         {automationRules.length > 0 && filteredAndSortedRules.length === 0 && (
+                            <p className="text-center text-gray-500 py-4">No se encontraron reglas que coincidan con la búsqueda.</p>
+                         )}
                          {automationRules.length === 0 && (
                             <p className="text-center text-gray-500 py-4">No has creado ninguna regla de automatización todavía.</p>
                         )}
