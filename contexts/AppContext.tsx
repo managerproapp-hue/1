@@ -19,19 +19,24 @@ interface AppState {
     accounts: Account[];
 }
 
+interface ActionResult {
+    success: boolean;
+    message?: string;
+}
+
 interface AppContextType {
     allTransactions: Transaction[];
     expenseCategories: string[];
     incomeCategories: string[];
-    handleConfirmImport: (newTransactions: Transaction[]) => void;
-    handleAddExpenseCategory: (category: string) => void;
-    handleUpdateExpenseCategory: (oldCategory: string, newCategory: string) => void;
+    handleConfirmImport: (newTransactions: Transaction[]) => ActionResult;
+    handleAddExpenseCategory: (category: string) => ActionResult;
+    handleUpdateExpenseCategory: (oldCategory: string, newCategory: string) => ActionResult;
     handleDeleteExpenseCategory: (category: string) => void;
-    handleAddIncomeCategory: (category: string) => void;
-    handleUpdateIncomeCategory: (oldCategory: string, newCategory: string) => void;
+    handleAddIncomeCategory: (category: string) => ActionResult;
+    handleUpdateIncomeCategory: (oldCategory: string, newCategory: string) => ActionResult;
     handleDeleteIncomeCategory: (category: string) => void;
-    handleDownloadBackup: () => void;
-    handleRestoreBackup: (file: File, callback: () => void) => void;
+    handleDownloadBackup: () => ActionResult;
+    handleRestoreBackup: (file: File, callback: (result: ActionResult) => void) => void;
     handleAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
     handleUpdateTransaction: (transaction: Transaction) => void;
     handleDeleteTransaction: (id: string) => void;
@@ -41,8 +46,8 @@ interface AppContextType {
     handleDeleteGoal: (id: string) => void;
     accounts: Account[];
     handleAddAccount: (account: Omit<Account, 'id'>) => void;
-    handleUpdateAccount: (account: Account) => void;
-    handleDeleteAccount: (id: string) => void;
+    handleUpdateAccount: (account: Account) => ActionResult;
+    handleDeleteAccount: (id: string) => ActionResult;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -62,13 +67,12 @@ const loadInitialState = (): AppState => {
         const storedState = JSON.parse(serializedState);
         const loadedAccounts = storedState.accounts || [];
         
-        // --- Migration logic from 'source' to 'accountId' ---
         const loadedTransactions = (storedState.allTransactions || []).map((tx: any) => {
             if (tx.source && !tx.accountId) {
                 const matchingAccount = loadedAccounts.find((acc: Account) => acc.accountName === tx.source);
                 tx.accountId = matchingAccount ? matchingAccount.id : (loadedAccounts[0]?.id || 'unassigned');
             }
-            delete tx.source; // Clean up old property
+            delete tx.source;
             return { ...tx, date: new Date(tx.date) };
         });
 
@@ -115,74 +119,57 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
     }, [allTransactions, expenseCategories, incomeCategories, goals, accounts]);
 
-    const handleConfirmImport = (newTransactions: Transaction[]) => {
+    const handleConfirmImport = (newTransactions: Transaction[]): ActionResult => {
         setAllTransactions(prev => [...prev, ...newTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        alert(`${newTransactions.length} transacciones importadas con éxito.`);
+        return { success: true, message: `${newTransactions.length} transacciones importadas con éxito.` };
     };
 
-    const handleAddExpenseCategory = (newCategory: string) => {
+    const handleAddExpenseCategory = (newCategory: string): ActionResult => {
         const trimmed = newCategory.trim();
         if (trimmed && !expenseCategories.find(c => c.toLowerCase() === trimmed.toLowerCase())) {
             setExpenseCategories(prev => [...prev, trimmed].sort());
-        } else {
-            alert("La categoría no puede estar vacía o ya existe.");
+            return { success: true };
         }
+        return { success: false, message: "La categoría no puede estar vacía o ya existe." };
     };
     
-    const handleUpdateExpenseCategory = (oldCategory: string, newCategory: string) => {
+    const handleUpdateExpenseCategory = (oldCategory: string, newCategory: string): ActionResult => {
         const trimmedNew = newCategory.trim();
-        if (!trimmedNew) {
-            alert("El nombre de la categoría no puede estar vacío.");
-            return;
-        }
-        if (oldCategory === 'Sin Categorizar') {
-            alert('No se puede modificar la categoría por defecto.');
-            return;
-        }
+        if (!trimmedNew) return { success: false, message: "El nombre de la categoría no puede estar vacío." };
+        if (oldCategory === 'Sin Categorizar') return { success: false, message: 'No se puede modificar la categoría por defecto.' };
         if (expenseCategories.find(c => c.toLowerCase() === trimmedNew.toLowerCase() && c.toLowerCase() !== oldCategory.toLowerCase())) {
-            alert("Esa categoría ya existe.");
-            return;
+            return { success: false, message: "Esa categoría ya existe." };
         }
 
         setExpenseCategories(prev => prev.map(c => (c === oldCategory ? trimmedNew : c)).sort());
         setAllTransactions(prev => prev.map(t => (t.category === oldCategory ? { ...t, category: trimmedNew } : t)));
         setGoals(prev => prev.map(g => (g.linkedCategory === oldCategory ? { ...g, linkedCategory: trimmedNew } : g)));
-        alert(`Categoría de gasto "${oldCategory}" actualizada a "${trimmedNew}".`);
+        return { success: true, message: `Categoría "${oldCategory}" actualizada a "${trimmedNew}".` };
     };
   
     const handleDeleteExpenseCategory = (category: string) => {
-        if (category === 'Sin Categorizar') {
-            alert('No se puede eliminar la categoría por defecto.');
-            return;
-        }
-        if (window.confirm(`¿Eliminar la categoría "${category}"? Las transacciones asociadas se moverán a "Sin Categorizar".`)) {
-            setExpenseCategories(prev => prev.filter(c => c !== category));
-            setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: 'Sin Categorizar'} : t));
-        }
+        setExpenseCategories(prev => prev.filter(c => c !== category));
+        setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: 'Sin Categorizar'} : t));
     };
 
-    const handleAddIncomeCategory = (newCategory: string) => {
+    const handleAddIncomeCategory = (newCategory: string): ActionResult => {
         const trimmed = newCategory.trim();
         if (trimmed && !incomeCategories.find(c => c.toLowerCase() === trimmed.toLowerCase())) {
             setIncomeCategories(prev => [...prev, trimmed].sort());
-        } else {
-            alert("La categoría no puede estar vacía o ya existe.");
+            return { success: true };
         }
+        return { success: false, message: "La categoría no puede estar vacía o ya existe." };
     };
 
-    const handleUpdateIncomeCategory = (oldCategory: string, newCategory: string) => {
+    const handleUpdateIncomeCategory = (oldCategory: string, newCategory: string): ActionResult => {
         const trimmedNew = newCategory.trim();
-        if (!trimmedNew) {
-            alert("El nombre de la categoría no puede estar vacío.");
-            return;
-        }
+        if (!trimmedNew) return { success: false, message: "El nombre de la categoría no puede estar vacío." };
         if (incomeCategories.find(c => c.toLowerCase() === trimmedNew.toLowerCase() && c.toLowerCase() !== oldCategory.toLowerCase())) {
-            alert("Esa categoría ya existe.");
-            return;
+            return { success: false, message: "Esa categoría ya existe." };
         }
         setIncomeCategories(prev => prev.map(c => (c === oldCategory ? trimmedNew : c)).sort());
         setAllTransactions(prev => prev.map(t => (t.category === oldCategory ? { ...t, category: trimmedNew } : t)));
-        alert(`Categoría de ingreso "${oldCategory}" actualizada a "${trimmedNew}".`);
+        return { success: true, message: `Categoría "${oldCategory}" actualizada a "${trimmedNew}".` };
     };
 
     const handleDeleteIncomeCategory = (category: string) => {
@@ -190,38 +177,41 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (!incomeCategories.includes(fallbackCategory)) {
              setIncomeCategories(prev => [...prev, fallbackCategory]);
         }
-        if (window.confirm(`¿Eliminar la categoría "${category}"? Las transacciones asociadas se moverán a "${fallbackCategory}".`)) {
-            setIncomeCategories(prev => prev.filter(c => c !== category));
-            setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: fallbackCategory} : t));
-        }
+        setIncomeCategories(prev => prev.filter(c => c !== category));
+        setAllTransactions(prev => prev.map(t => t.category === category ? {...t, category: fallbackCategory} : t));
     };
 
-    const handleDownloadBackup = () => {
+    const handleDownloadBackup = (): ActionResult => {
         if (allTransactions.length === 0 && accounts.length === 0 && goals.length === 0) {
-            alert("No hay datos para exportar.");
-            return;
+            return { success: false, message: "No hay datos para exportar." };
         }
-        const backupData = {
-            lastUpdated: new Date().toISOString(),
-            transactions: allTransactions,
-            expenseCategories: expenseCategories,
-            incomeCategories: incomeCategories,
-            goals: goals,
-            accounts: accounts,
-        };
-        const dataStr = JSON.stringify(backupData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `budget-backup-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        URL.revokeObjectURL(url);
-        link.remove();
+        try {
+            const backupData = {
+                lastUpdated: new Date().toISOString(),
+                transactions: allTransactions,
+                expenseCategories: expenseCategories,
+                incomeCategories: incomeCategories,
+                goals: goals,
+                accounts: accounts,
+            };
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `budget-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            URL.revokeObjectURL(url);
+            link.remove();
+            return { success: true, message: "Copia de seguridad descargada." };
+        } catch (error) {
+            console.error("Backup download error:", error);
+            return { success: false, message: "Error al generar la copia de seguridad." };
+        }
     };
 
-    const handleRestoreBackup = (file: File, callback: () => void) => {
+    const handleRestoreBackup = (file: File, callback: (result: ActionResult) => void) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
@@ -237,37 +227,23 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 setIncomeCategories(incomeCategoriesToLoad);
                 setGoals(goalsToLoad);
                 setAccounts(accountsToLoad);
-
-                alert(`Copia de seguridad restaurada. Última actualización: ${new Date(data.lastUpdated || Date.now()).toLocaleString()}`);
-                callback(); 
+                
+                callback({ success: true, message: `Copia restaurada con éxito.`});
             } catch (error) {
                 console.error("Backup restore error:", error);
-                alert("Error al procesar el archivo de copia de seguridad.");
+                callback({ success: false, message: "Error al procesar el archivo." });
             }
         };
         reader.readAsText(file);
     };
 
     const handleAddTransaction = (transaction: Omit<Transaction, 'id'>) => {
-        const newTransaction: Transaction = {
-            ...transaction,
-            id: crypto.randomUUID(),
-        };
-        setAllTransactions(prevTransactions => {
-            const updatedTransactions = [newTransaction, ...prevTransactions];
-            updatedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            return updatedTransactions;
-        });
+        const newTransaction: Transaction = { ...transaction, id: crypto.randomUUID() };
+        setAllTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     };
 
     const handleUpdateTransaction = (updatedTransaction: Transaction) => {
-        setAllTransactions(prevTransactions => {
-            const updatedTransactions = prevTransactions.map(t =>
-                t.id === updatedTransaction.id ? updatedTransaction : t
-            );
-            updatedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            return updatedTransactions;
-        });
+        setAllTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     };
 
     const handleDeleteTransaction = (id: string) => {
@@ -292,50 +268,31 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setAccounts(prev => [...prev, newAccount]);
     };
 
-    const handleUpdateAccount = (updatedAccount: Account) => {
+    const handleUpdateAccount = (updatedAccount: Account): ActionResult => {
         setAccounts(prev => prev.map(a => a.id === updatedAccount.id ? updatedAccount : a));
-        alert(`Cuenta "${updatedAccount.accountName}" actualizada.`);
+        return { success: true, message: `Cuenta "${updatedAccount.accountName}" actualizada.` };
     };
 
-    const handleDeleteAccount = (id: string) => {
+    const handleDeleteAccount = (id: string): ActionResult => {
         const accountToDelete = accounts.find(a => a.id === id);
-        if (!accountToDelete) return;
+        if (!accountToDelete) return { success: false, message: "La cuenta no existe." };
     
         const transactionsInAccount = allTransactions.some(t => t.accountId === id);
         if (transactionsInAccount) {
-            alert(`No se puede eliminar la cuenta "${accountToDelete.accountName}" porque tiene transacciones asociadas. Por favor, primero mueva o elimine esas transacciones.`);
-            return;
+            return { success: false, message: `No se puede eliminar "${accountToDelete.accountName}" porque tiene transacciones asociadas.` };
         }
         
-        if (window.confirm(`¿Estás seguro de que quieres eliminar la cuenta "${accountToDelete.accountName}"?`)) {
-            setAccounts(prev => prev.filter(a => a.id !== id));
-        }
+        setAccounts(prev => prev.filter(a => a.id !== id));
+        return { success: true };
     };
 
     const value = {
-        allTransactions,
-        expenseCategories,
-        incomeCategories,
-        handleConfirmImport,
-        handleAddExpenseCategory,
-        handleUpdateExpenseCategory,
-        handleDeleteExpenseCategory,
-        handleAddIncomeCategory,
-        handleUpdateIncomeCategory,
-        handleDeleteIncomeCategory,
-        handleDownloadBackup,
-        handleRestoreBackup,
-        handleAddTransaction,
-        handleUpdateTransaction,
-        handleDeleteTransaction,
-        goals,
-        handleAddGoal,
-        handleUpdateGoal,
-        handleDeleteGoal,
-        accounts,
-        handleAddAccount,
-        handleUpdateAccount,
-        handleDeleteAccount,
+        allTransactions, expenseCategories, incomeCategories, handleConfirmImport,
+        handleAddExpenseCategory, handleUpdateExpenseCategory, handleDeleteExpenseCategory,
+        handleAddIncomeCategory, handleUpdateIncomeCategory, handleDeleteIncomeCategory,
+        handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
+        handleDeleteTransaction, goals, handleAddGoal, handleUpdateGoal, handleDeleteGoal,
+        accounts, handleAddAccount, handleUpdateAccount, handleDeleteAccount,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

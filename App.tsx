@@ -1,7 +1,9 @@
 import React, { useState, FC } from 'react';
-import { SpinnerIcon, PiggyBankIcon, SparklesIcon } from './components/icons';
+import { PiggyBankIcon, SparklesIcon } from './components/icons';
 import MainApp from './components/MainApp';
 import { AppProvider } from './contexts/AppContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { ModalProvider } from './contexts/ModalContext';
 
 // --- Welcome Component ---
 const Welcome: FC<{ onEnter: () => void }> = ({ onEnter }) => (
@@ -34,7 +36,11 @@ const App: React.FC = () => {
 
     return (
         <AppProvider>
-            <MainApp />
+            <ToastProvider>
+                <ModalProvider>
+                    <MainApp />
+                </ModalProvider>
+            </ToastProvider>
         </AppProvider>
     );
 };
