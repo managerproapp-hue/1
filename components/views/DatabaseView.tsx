@@ -4,7 +4,7 @@ import { useAppContext } from '../../contexts/AppContext';
 import { useModal } from '../../contexts/ModalContext';
 import { useToast } from '../../contexts/ToastContext';
 import AddTransactionModal from '../modals/AddTransactionModal';
-import { PencilIcon, TrashIcon, PlusCircleIcon, ChevronLeftIcon, ChevronRightIcon, FileDownIcon, FileTextIcon, FileSpreadsheetIcon } from '../icons';
+import { PencilIcon, TrashIcon, PlusCircleIcon, ChevronLeftIcon, ChevronRightIcon, FileDownIcon, FileTextIcon, FileSpreadsheetIcon, SparklesIcon } from '../icons';
 
 declare global {
   interface Window {
@@ -17,7 +17,7 @@ const ITEMS_PER_PAGE = 10;
 type SortableKeys = keyof Transaction | 'accountName' | 'categoryName';
 
 const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
-    const { handleDeleteTransaction, accounts, categories } = useAppContext();
+    const { handleDeleteTransaction, accounts, categories, handleReapplyAutomationRules, automationRules } = useAppContext();
     const { confirm } = useModal();
     const { addToast } = useToast();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,6 +71,37 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
         const confirmed = await confirm('Confirmar Eliminación', `¿Estás seguro de que quieres eliminar la transacción "${description}"?`);
         if (confirmed) { handleDeleteTransaction(id); addToast({ type: 'success', message: 'Transacción eliminada.' }); }
     };
+
+    const handleReapplyRulesClick = async () => {
+        if (automationRules.length === 0) {
+            addToast({ type: 'info', message: 'No has creado ninguna regla de automatización.' });
+            return;
+        }
+        if (transactions.length === 0) {
+            addToast({ type: 'info', message: 'No hay transacciones en la vista para aplicar reglas.' });
+            return;
+        }
+        
+        const confirmed = await confirm(
+            'Re-aplicar Reglas',
+            `Esto intentará re-categorizar las ${transactions.length} transacciones visibles en esta página según tus reglas actuales. ¿Estás seguro?`
+        );
+
+        if (confirmed) {
+            const transactionIdsToProcess = transactions.map(t => t.id);
+            const { updatedCount, matchedButAlreadyCategorized } = handleReapplyAutomationRules(transactionIdsToProcess);
+
+            if (updatedCount > 0) {
+                addToast({ type: 'success', message: `${updatedCount} transacciones han sido re-categorizadas.` });
+            } else {
+                if (matchedButAlreadyCategorized > 0) {
+                    addToast({ type: 'info', message: `Se encontraron ${matchedButAlreadyCategorized} coincidencias, pero ya estaban en la categoría correcta.` });
+                } else {
+                    addToast({ type: 'info', message: 'No se encontraron nuevas transacciones para actualizar con las reglas actuales.' });
+                }
+            }
+        }
+    };
     
     const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const formatDate = (date: Date) => new Date(date).toLocaleDateString('es-ES');
@@ -105,6 +136,10 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                     {lastTransactionDate && <p className="text-sm text-gray-400 mt-1">Último movimiento: {formatDate(lastTransactionDate)}</p>}
                 </div>
                 <div className="flex items-center space-x-2">
+                    <button onClick={handleReapplyRulesClick} className="flex items-center space-x-2 bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-4 rounded-lg">
+                        <SparklesIcon className="w-5 h-5" />
+                        <span>Re-aplicar Reglas</span>
+                    </button>
                     <div className="relative">
                         <button onClick={() => setIsExportMenuOpen(p => !p)} className="flex items-center space-x-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-lg"><FileDownIcon className="w-5 h-5" /><span>Exportar</span></button>
                         {isExportMenuOpen && <div className="absolute right-0 mt-2 w-56 origin-top-right bg-slate-700 rounded-md shadow-lg z-10">
