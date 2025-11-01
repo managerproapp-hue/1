@@ -11,9 +11,11 @@ const SettingsView = lazy(() => import('./views/SettingsView'));
 const AccountComparisonView = lazy(() => import('./views/AccountComparisonView'));
 const BudgetsView = lazy(() => import('./views/BudgetsView'));
 const SearchView = lazy(() => import('./views/SearchView'));
+const AutomationRulesView = lazy(() => import('./views/AutomationRulesView'));
 
 
 type ActiveTab = 'dashboard' | 'importar' | 'sin-categorizar' | 'base' | 'comparacion' | 'analisis' | 'buscador' | 'backup' | 'settings';
+type SearchSubView = 'list' | 'rules';
 
 const MainApp: React.FC = () => {
   const { allTransactions, accounts } = useAppContext();
@@ -22,6 +24,7 @@ const MainApp: React.FC = () => {
   const [month, setMonth] = useState<number | 'all'>('all');
   const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>('all');
   const [searchFilters, setSearchFilters] = useState<{ category: string; term: string }>({ category: 'all', term: '' });
+  const [searchSubView, setSearchSubView] = useState<SearchSubView>('list');
   
   const uncategorizedCount = useMemo(() => {
     return allTransactions.filter(t => t.categoryId === 'cat-uncategorized').length;
@@ -57,6 +60,9 @@ const MainApp: React.FC = () => {
   }, [filteredTransactionsByDate, selectedAccountId]);
   
   useEffect(() => {
+    // Reset sub-view when changing main tabs
+    setSearchSubView('list');
+
     if (activeTab === 'sin-categorizar') {
       setSearchFilters({ category: 'cat-uncategorized', term: '' });
     }
@@ -98,8 +104,6 @@ const MainApp: React.FC = () => {
   
   const handleSearchFiltersChange = (newFilters: { category: string; term: string; }) => {
     setSearchFilters(newFilters);
-    // Si estábamos en la pestaña dedicada a "sin categorizar", pero el usuario cambia
-    // el filtro a otra categoría, lo movemos a la pestaña genérica de "buscador".
     if (activeTab === 'sin-categorizar' && newFilters.category !== 'cat-uncategorized') {
         setActiveTab('buscador');
     }
@@ -120,7 +124,10 @@ const MainApp: React.FC = () => {
             return <BudgetsView selectedYears={selectedYears} month={month} selectedAccountId={selectedAccountId} />;
         case 'sin-categorizar':
         case 'buscador':
-            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={handleSearchFiltersChange} />;
+            if (searchSubView === 'rules') {
+                return <AutomationRulesView onBack={() => setSearchSubView('list')} />;
+            }
+            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={handleSearchFiltersChange} onNavigateToRules={() => setSearchSubView('rules')} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':

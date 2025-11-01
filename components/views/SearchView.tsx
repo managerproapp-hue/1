@@ -15,9 +15,10 @@ interface SearchViewProps {
     transactions: Transaction[];
     filters: { category: string; term: string; }; // category is now categoryId
     onFiltersChange: (newFilters: { category: string; term: string; }) => void;
+    onNavigateToRules: () => void;
 }
 
-const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange }) => {
+const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange, onNavigateToRules }) => {
     const { categories, accounts, handleDeleteTransaction, handleReapplyAutomationRules, getCategoryWithDescendants } = useAppContext();
     const { confirm } = useModal();
     const { addToast } = useToast();
@@ -110,7 +111,13 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
     return (
         <div className="space-y-6">
             <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
-                <h2 className="text-2xl font-semibold mb-4">Buscador de Transacciones</h2>
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <h2 className="text-2xl font-semibold">Buscador de Transacciones</h2>
+                    <button onClick={onNavigateToRules} className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold py-2 px-3 rounded-lg">
+                        <SparklesIcon className="w-4 h-4" />
+                        <span>Gestionar Reglas</span>
+                    </button>
+                </div>
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                     <div className="w-full md:w-1/3"><select value={filters.category} onChange={e => onFiltersChange({ ...filters, category: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500 h-full">{renderCategoryOptions()}</select></div>
                     <div className="relative w-full md:w-2/3"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon className="h-5 w-5 text-gray-400" /></div><input type="text" placeholder="Buscar por descripción o anotaciones..." value={filters.term} onChange={e => onFiltersChange({ ...filters, term: e.target.value })} className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 pl-10 pr-4 text-white focus:ring-violet-500 focus:border-violet-500"/></div>
