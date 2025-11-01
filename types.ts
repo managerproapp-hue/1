@@ -20,6 +20,7 @@ export interface Transaction {
   categoryId: string;
   accountId: string;
   notes?: string;
+  automatedByRuleId?: string;
 }
 
 export interface ChartData {
@@ -36,6 +37,7 @@ export interface StagedTransaction {
   categoryId: string;
   isValid: boolean;
   accountId: string;
+  automatedByRuleId?: string;
 }
 
 export interface ProcessingError {

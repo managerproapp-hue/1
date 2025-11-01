@@ -202,13 +202,21 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }, [categories]);
 
     const handleReapplyAutomationRules = useCallback((transactionIds: string[]): { updatedCount: number } => {
-        const idsToUpdate = new Set(transactionIds); let updatedCount = 0;
+        const idsToUpdate = new Set(transactionIds);
+        let updatedCount = 0;
+
+        // Sort rules by keyword length, descending. This makes more specific rules run first.
+        const sortedRules = [...automationRules].sort((a, b) => b.keyword.length - a.keyword.length);
+
         const updatedTransactions = allTransactions.map(t => {
             if (idsToUpdate.has(t.id)) {
-                for (const rule of automationRules) {
+                for (const rule of sortedRules) {
                     if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
-                        if (t.categoryId !== rule.categoryId) { updatedCount++; return { ...t, categoryId: rule.categoryId }; }
-                        break;
+                        if (t.categoryId !== rule.categoryId) {
+                            updatedCount++;
+                            return { ...t, categoryId: rule.categoryId, automatedByRuleId: rule.id };
+                        }
+                        break; // Stop at the first (most specific) match
                     }
                 }
             }

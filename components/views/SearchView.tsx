@@ -19,7 +19,7 @@ interface SearchViewProps {
 }
 
 const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange, onNavigateToRules }) => {
-    const { categories, accounts, handleDeleteTransaction, handleReapplyAutomationRules, getCategoryWithDescendants } = useAppContext();
+    const { categories, accounts, handleDeleteTransaction, handleReapplyAutomationRules, getCategoryWithDescendants, automationRules } = useAppContext();
     const { confirm } = useModal();
     const { addToast } = useToast();
     
@@ -29,6 +29,7 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
 
     const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
     const categoryNameMap = useMemo(() => new Map(categories.map(cat => [cat.id, cat.name])), [categories]);
+    const ruleMap = useMemo(() => new Map(automationRules.map(rule => [rule.id, rule])), [automationRules]);
     
     const getAccountName = (accountId: string) => accountNameMap.get(accountId) || 'Cuenta Desconocida';
     const getCategoryName = (categoryId: string) => categoryNameMap.get(categoryId) || 'Categoría Desconocida';
@@ -153,7 +154,16 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
                                 <td className="p-3">{t.description}{t.notes && <p className="text-xs text-gray-400 italic mt-1">{t.notes}</p>}</td>
                                 <td className="p-3 text-xs text-gray-400">{getAccountName(t.accountId)}</td>
                                 <td className={`p-3 text-right font-semibold ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>{t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}</td>
-                                <td className="p-3">{getCategoryName(t.categoryId)}</td>
+                                <td className="p-3">
+                                    <div className="flex items-center gap-2">
+                                        <span>{getCategoryName(t.categoryId)}</span>
+                                        {t.automatedByRuleId && (
+                                            <span title={`Categorizado por la regla: "${ruleMap.get(t.automatedByRuleId)?.keyword}"`}>
+                                                <SparklesIcon className="w-4 h-4 text-violet-400" />
+                                            </span>
+                                        )}
+                                    </div>
+                                </td>
                                 <td className="p-3"><div className="flex items-center space-x-3"><button onClick={() => handleEdit(t)} className="text-gray-400 hover:text-violet-400" title="Editar"><PencilIcon className="w-4 h-4" /></button><button onClick={() => handleDelete(t.id, t.description)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button></div></td>
                             </tr>))}</tbody>
                         </table></div></>

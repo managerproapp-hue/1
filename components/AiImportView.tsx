@@ -18,7 +18,7 @@ const AiImportView: React.FC<{
     setActiveTab: (tab: 'dashboard' | 'settings') => void,
     onImportComplete: () => void;
 }> = ({ setActiveTab, onImportComplete }) => {
-    const { handleConfirmImport, categories, accounts } = useAppContext();
+    const { handleConfirmImport, categories, accounts, automationRules } = useAppContext();
     const { addToast } = useToast();
     
     const [step, setStep] = useState<Step>('upload');
@@ -40,6 +40,20 @@ const AiImportView: React.FC<{
         setStep('upload'); setIsLoading(false); setLoadingMessage(''); setFile(null);
         setCsvHeaders([]); setCsvData([]); setMapping({ date: null, description: null, amount: null });
         setStagedTransactions([]);
+    };
+
+    const applyAutomationRules = (transactions: StagedTransaction[]): StagedTransaction[] => {
+        const sortedRules = [...automationRules].sort((a, b) => b.keyword.length - a.keyword.length);
+        if (sortedRules.length === 0) return transactions;
+
+        return transactions.map(t => {
+            for (const rule of sortedRules) {
+                if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                    return { ...t, categoryId: rule.categoryId, automatedByRuleId: rule.id };
+                }
+            }
+            return t;
+        });
     };
 
     const processStructuredFile = (selectedFile: File) => {
@@ -88,7 +102,8 @@ const AiImportView: React.FC<{
             const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema } });
             const parsedTransactions = JSON.parse(response.text.trim());
             if (!Array.isArray(parsedTransactions)) throw new Error("La respuesta de la IA no es un array.");
-            const initialStaged = parsedTransactions.map(parseAIRow).filter(t => t.isValid);
+            let initialStaged = parsedTransactions.map(parseAIRow).filter(t => t.isValid);
+            initialStaged = applyAutomationRules(initialStaged);
             setStagedTransactions(initialStaged); 
             setStep('review');
         } catch (error) { addToast({ type: 'error', message: 'Error al procesar los datos con la IA.' }); } finally { setIsLoading(false); }
@@ -104,7 +119,8 @@ const AiImportView: React.FC<{
 
     const handleMappingConfirm = () => {
         if (mapping.date === null || mapping.description === null || mapping.amount === null) { addToast({ type: 'warning', message: 'Por favor, mapea Fecha, Descripción y Monto.' }); return; }
-        const initialStaged = csvData.map(parseMappedRow).filter(t => t.isValid);
+        let initialStaged = csvData.map(parseMappedRow).filter(t => t.isValid);
+        initialStaged = applyAutomationRules(initialStaged);
         setStagedTransactions(initialStaged); 
         setStep('review');
     };
