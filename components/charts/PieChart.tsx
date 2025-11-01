@@ -5,7 +5,7 @@ import { ChartData } from '../../types';
 interface CustomPieChartProps {
   data: ChartData[];
   colors: string[];
-  onSliceClick?: (category: string) => void;
+  onSliceClick?: (data: any) => void;
 }
 
 const renderActiveShape = (props: any) => {
@@ -75,7 +75,7 @@ export const CustomPieChart: React.FC<CustomPieChartProps> = ({ data, colors, on
             fill="#8884d8"
             dataKey="value"
             onMouseEnter={onPieEnter}
-            onClick={(data) => onSliceClick && onSliceClick(data.name)}
+            onClick={(data) => onSliceClick && onSliceClick(data)}
             style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
         >
           {data.map((entry, index) => (

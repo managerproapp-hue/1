@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Goal } from '../../types';
+import { Goal, TransactionType } from '../../types';
 import { useAppContext } from '../../contexts/AppContext';
 import { XIcon } from '../icons';
 
@@ -10,23 +10,40 @@ interface AddGoalModalProps {
 }
 
 const AddGoalModal: React.FC<AddGoalModalProps> = ({ isOpen, onClose, goalToEdit }) => {
-    const { expenseCategories, handleAddGoal, handleUpdateGoal } = useAppContext();
+    const { categories, handleAddGoal, handleUpdateGoal } = useAppContext();
     const isEditMode = !!goalToEdit;
+    
+    const expenseCategories = categories.filter(c => c.type === TransactionType.EXPENSE);
 
     const [name, setName] = useState('');
     const [targetAmount, setTargetAmount] = useState<number | ''>('');
-    const [linkedCategory, setLinkedCategory] = useState(expenseCategories.includes('Ahorros') ? 'Ahorros' : expenseCategories[0]);
+    const [linkedCategoryId, setLinkedCategoryId] = useState(expenseCategories[0]?.id || '');
+    
+    const renderCategoryOptions = () => {
+        const rootCategories = expenseCategories.filter(c => c.parentId === null);
+        // FIX: Replaced JSX.Element with React.ReactElement to resolve namespace issue.
+        const options: React.ReactElement[] = [];
+        rootCategories.forEach(root => {
+            options.push(<option key={root.id} value={root.id} className="font-bold">{root.name}</option>);
+            const children = expenseCategories.filter(c => c.parentId === root.id);
+            children.forEach(child => {
+                 options.push(<option key={child.id} value={child.id}>&nbsp;&nbsp;&nbsp;{child.name}</option>);
+            });
+        });
+        return options;
+    };
 
     useEffect(() => {
         if (isOpen) {
             if (isEditMode) {
                 setName(goalToEdit.name);
                 setTargetAmount(goalToEdit.targetAmount);
-                setLinkedCategory(goalToEdit.linkedCategory);
+                setLinkedCategoryId(goalToEdit.linkedCategoryId);
             } else {
                 setName('');
                 setTargetAmount('');
-                setLinkedCategory(expenseCategories.includes('Ahorros') ? 'Ahorros' : expenseCategories[0]);
+                const savingsCategory = expenseCategories.find(c => c.name.toLowerCase() === 'ahorros');
+                setLinkedCategoryId(savingsCategory?.id || expenseCategories[0]?.id || '');
             }
         }
     }, [isOpen, goalToEdit, isEditMode, expenseCategories]);
@@ -38,7 +55,7 @@ const AddGoalModal: React.FC<AddGoalModalProps> = ({ isOpen, onClose, goalToEdit
             return;
         }
 
-        const goalData = { name, targetAmount: targetAmount as number, linkedCategory };
+        const goalData = { name, targetAmount: targetAmount as number, linkedCategoryId };
         
         if (isEditMode) {
             handleUpdateGoal({ ...goalData, id: goalToEdit.id });
@@ -56,24 +73,14 @@ const AddGoalModal: React.FC<AddGoalModalProps> = ({ isOpen, onClose, goalToEdit
             <div className="bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg relative border border-slate-700">
                 <div className="flex justify-between items-center p-4 border-b border-slate-700">
                     <h2 className="text-xl font-semibold">{isEditMode ? 'Editar' : 'Añadir Nueva'} Meta Financiera</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Cerrar modal">
-                        <XIcon className="w-6 h-6" />
-                    </button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Cerrar modal"><XIcon className="w-6 h-6" /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                        <label htmlFor="goal-name" className="block text-sm font-medium text-gray-300 mb-1">Nombre de la Meta</label>
-                        <input type="text" id="goal-name" value={name} onChange={e => setName(e.target.value)} required placeholder="Ej: Viaje a Japón" className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500" />
-                    </div>
-                    <div>
-                        <label htmlFor="goal-amount" className="block text-sm font-medium text-gray-300 mb-1">Monto Objetivo (€)</label>
-                        <input type="number" id="goal-amount" value={targetAmount} onChange={e => setTargetAmount(parseFloat(e.target.value) || '')} min="1" step="any" required placeholder="0.00" className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500" />
-                    </div>
+                    <div><label htmlFor="goal-name" className="block text-sm font-medium text-gray-300 mb-1">Nombre de la Meta</label><input type="text" id="goal-name" value={name} onChange={e => setName(e.target.value)} required placeholder="Ej: Viaje a Japón" className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500" /></div>
+                    <div><label htmlFor="goal-amount" className="block text-sm font-medium text-gray-300 mb-1">Monto Objetivo (€)</label><input type="number" id="goal-amount" value={targetAmount} onChange={e => setTargetAmount(parseFloat(e.target.value) || '')} min="1" step="any" required placeholder="0.00" className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500" /></div>
                     <div>
                         <label htmlFor="goal-category" className="block text-sm font-medium text-gray-300 mb-1">Vincular a Categoría</label>
-                        <select id="goal-category" value={linkedCategory} onChange={e => setLinkedCategory(e.target.value)} required className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500">
-                            {expenseCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                        </select>
+                        <select id="goal-category" value={linkedCategoryId} onChange={e => setLinkedCategoryId(e.target.value)} required className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500">{renderCategoryOptions()}</select>
                         <p className="text-xs text-gray-500 mt-1">El progreso se calculará sumando las transacciones de esta categoría.</p>
                     </div>
 

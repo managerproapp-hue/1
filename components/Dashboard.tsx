@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Transaction, TransactionType, ChartData } from '../types';
+import { Transaction, TransactionType, ChartData, Category } from '../types';
 import { MetricCard } from './MetricCard';
 import { CustomBarChart } from './charts/BarChart';
 import { CustomLineChart } from './charts/LineChart';
@@ -42,97 +42,96 @@ const formatCurrency = (value: number) => {
 
 interface DashboardProps {
     transactions: Transaction[];
-    onNavigateToSearch: (category: string) => void;
+    onNavigateToSearch: (categoryId: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ transactions, onNavigateToSearch }) => {
-  const { allTransactions, goals } = useAppContext();
+  const { allTransactions, goals, categories, getCategoryWithDescendants } = useAppContext();
+  
+  const categoryMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const getCategoryName = (id: string) => categoryMap.get(id)?.name || 'Desconocida';
+  const getRootCategoryId = (id: string): string => {
+      let current = categoryMap.get(id);
+      while (current && current.parentId) {
+          current = categoryMap.get(current.parentId);
+      }
+      return current ? current.id : id;
+  };
 
   const { totalIncome, totalExpenses, netMargin, savingsRate } = useMemo(() => {
-    const income = transactions
-      .filter(t => t.type === TransactionType.INCOME)
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions
-      .filter(t => t.type === TransactionType.EXPENSE)
-      .reduce((sum, t) => sum + t.amount, 0);
+    const income = transactions.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + t.amount, 0);
     const margin = income - expenses;
     const rate = income > 0 ? (margin / income) * 100 : 0;
-    return {
-      totalIncome: income,
-      totalExpenses: expenses,
-      netMargin: margin,
-      savingsRate: rate,
-    };
+    return { totalIncome: income, totalExpenses: expenses, netMargin: margin, savingsRate: rate };
   }, [transactions]);
 
   const monthlyPerformanceData = useMemo<ChartData[]>(() => {
     const monthlyData: { [key: string]: { Ingresos: number, Gastos: number, 'Margen Neto': number } } = {};
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-
-    monthNames.forEach(name => {
-        monthlyData[name] = { Ingresos: 0, Gastos: 0, 'Margen Neto': 0 };
-    });
-
+    monthNames.forEach(name => { monthlyData[name] = { Ingresos: 0, Gastos: 0, 'Margen Neto': 0 }; });
     transactions.forEach(t => {
       const month = monthNames[t.date.getMonth()];
-      if (t.type === TransactionType.INCOME) {
-        monthlyData[month].Ingresos += t.amount;
-      } else {
-        monthlyData[month].Gastos += t.amount;
-      }
+      if (t.type === TransactionType.INCOME) monthlyData[month].Ingresos += t.amount;
+      else monthlyData[month].Gastos += t.amount;
     });
-
     return monthNames.map(month => {
       const { Ingresos, Gastos } = monthlyData[month];
-      return {
-        name: month,
-        Ingresos,
-        Gastos,
-        'Margen Neto': Ingresos - Gastos,
-      };
+      return { name: month, Ingresos, Gastos, 'Margen Neto': Ingresos - Gastos };
     });
   }, [transactions]);
 
   const expenseDistributionData = useMemo<ChartData[]>(() => {
-    const categoryTotals: { [key: string]: number } = {};
-    transactions
-      .filter(t => t.type === TransactionType.EXPENSE)
-      .forEach(t => {
-        categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+    const categoryTotals: { [key: string]: { name: string, value: number, id: string } } = {};
+    transactions.filter(t => t.type === TransactionType.EXPENSE).forEach(t => {
+        const rootId = getRootCategoryId(t.categoryId);
+        if (!categoryTotals[rootId]) {
+            categoryTotals[rootId] = { name: getCategoryName(rootId), value: 0, id: rootId };
+        }
+        categoryTotals[rootId].value += t.amount;
       });
-    return Object.entries(categoryTotals)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [transactions]);
+    return Object.values(categoryTotals).sort((a, b) => b.value - a.value);
+  }, [transactions, getCategoryName, getRootCategoryId]);
   
   const incomeByCategoryData = useMemo<ChartData[]>(() => {
-    const categoryTotals: { [key: string]: number } = {};
-    transactions
-      .filter(t => t.type === TransactionType.INCOME)
-      .forEach(t => {
-        const category = t.category || 'Ingresos Varios';
-        categoryTotals[category] = (categoryTotals[category] || 0) + t.amount;
+    const categoryTotals: { [key: string]: { name: string, value: number, id: string } } = {};
+    transactions.filter(t => t.type === TransactionType.INCOME).forEach(t => {
+        const rootId = getRootCategoryId(t.categoryId);
+        if (!categoryTotals[rootId]) {
+            categoryTotals[rootId] = { name: getCategoryName(rootId), value: 0, id: rootId };
+        }
+        categoryTotals[rootId].value += t.amount;
       });
-    return Object.entries(categoryTotals)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [transactions]);
+    return Object.values(categoryTotals).sort((a, b) => b.value - a.value);
+  }, [transactions, getCategoryName, getRootCategoryId]);
   
   const goalsWithProgress = useMemo(() => {
-    const categoryTotals = allTransactions.reduce((acc, t) => {
-        if (t.type === TransactionType.EXPENSE) { // Consider only expenses for savings goals, etc.
-             acc[t.category] = (acc[t.category] || 0) + t.amount;
-        }
-        return acc;
-    }, {} as { [key: string]: number });
-    
-    return goals.map(goal => ({
-        ...goal,
-        currentAmount: categoryTotals[goal.linkedCategory] || 0,
-    }));
-  }, [allTransactions, goals]);
+    return goals.map(goal => {
+        const allCategoryIds = getCategoryWithDescendants(goal.linkedCategoryId);
+        const categoryIdsSet = new Set(allCategoryIds);
+        
+        const currentAmount = allTransactions.reduce((sum, t) => {
+            if (t.type === TransactionType.EXPENSE && categoryIdsSet.has(t.categoryId)) {
+                return sum + t.amount;
+            }
+            return sum;
+        }, 0);
+
+        return {
+            ...goal,
+            currentAmount,
+        };
+    });
+  }, [allTransactions, goals, getCategoryWithDescendants]);
 
   const pieChartColors = ["#8b5cf6", "#ec4899", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+  
+  const handleChartClick = (data: any) => {
+      const clickedData = expenseDistributionData.find(d => d.name === data.name);
+      if (clickedData && 'id' in clickedData) {
+          onNavigateToSearch(clickedData.id as string);
+      }
+  };
 
   return (
     <div className="space-y-6">
@@ -151,12 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, onNavigateToSearch 
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {goalsWithProgress.map(goal => (
-                      <GoalProgressCard 
-                          key={goal.id}
-                          name={goal.name}
-                          currentAmount={goal.currentAmount}
-                          targetAmount={goal.targetAmount}
-                      />
+                      <GoalProgressCard key={goal.id} name={goal.name} currentAmount={goal.currentAmount} targetAmount={goal.targetAmount} />
                   ))}
               </div>
           </div>
@@ -165,24 +159,17 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, onNavigateToSearch 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-slate-800 p-6 rounded-xl shadow-lg">
             <h3 className="text-xl font-semibold mb-4">Rendimiento Mensual</h3>
-            <CustomLineChart 
-                data={monthlyPerformanceData}
-                lines={[
-                    { dataKey: 'Ingresos', stroke: '#8b5cf6' },
-                    { dataKey: 'Gastos', stroke: '#ec4899' },
-                    { dataKey: 'Margen Neto', stroke: '#3b82f6' }
-                ]}
-            />
+            <CustomLineChart data={monthlyPerformanceData} lines={[ { dataKey: 'Ingresos', stroke: '#8b5cf6' }, { dataKey: 'Gastos', stroke: '#ec4899' }, { dataKey: 'Margen Neto', stroke: '#3b82f6' } ]} />
         </div>
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
             <h3 className="text-xl font-semibold mb-4">Distribución de Gastos</h3>
-            <CustomPieChart data={expenseDistributionData} colors={pieChartColors} onSliceClick={onNavigateToSearch} />
+            <CustomPieChart data={expenseDistributionData} colors={pieChartColors} onSliceClick={handleChartClick} />
         </div>
       </div>
        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
           <h3 className="text-xl font-semibold mb-4">Gastos por Categoría</h3>
-          <CustomBarChart data={expenseDistributionData} bars={[{ dataKey: 'value', fillColor: '#ec4899' }]} onBarClick={onNavigateToSearch} />
+          <CustomBarChart data={expenseDistributionData} bars={[{ dataKey: 'value', fillColor: '#ec4899' }]} onBarClick={(catName) => handleChartClick({name: catName})} />
         </div>
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
           <h3 className="text-xl font-semibold mb-4">Ingresos por Categoría</h3>

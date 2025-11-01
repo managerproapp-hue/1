@@ -1,23 +1,90 @@
 import React, { createContext, useState, useContext, ReactNode, FC, useEffect } from 'react';
-import { Transaction, Goal, Account, AutomationRule, TransactionType } from '../types';
+import { Transaction, Goal, Account, AutomationRule, TransactionType, Category } from '../types';
 
 const STORAGE_KEY = 'budget-app-data';
+const DATA_STRUCTURE_VERSION = 2; // Version for subcategories
 
-const INITIAL_EXPENSE_CATEGORIES = [
-  'Sin Categorizar', 'Gastos niñas', 'Supermercados', 'Gasolina', 'Seguros', 'Ropa / Otros', 'Teléfono / Internet', 'TV de Pago', 'Agua', 'Manutención', 'Prestamos', 'Luz', 'Mascotas', 'Ayuntamiento', 'Ahorros', 'Vivienda', 'Transporte', 'Comida',
-];
+// --- Data Migration ---
+const migrateDataStructure = (data: any): AppState => {
+    if (data.dataStructureVersion === DATA_STRUCTURE_VERSION) {
+        // Data is up to date, just parse dates
+        data.allTransactions = (data.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) }));
+        return data;
+    }
 
-const INITIAL_INCOME_CATEGORIES = [
-    'Nómina', 'Ventas', 'Ingresos Varios'
-];
+    console.log("Migrating data to new structure (v2)...");
+    
+    // Default categories for new users
+    const defaultExpenseCategories: Category[] = [
+      { id: 'cat-uncategorized', name: 'Sin Categorizar', parentId: null, type: TransactionType.EXPENSE },
+      { id: crypto.randomUUID(), name: 'Vivienda', parentId: null, type: TransactionType.EXPENSE },
+      { id: crypto.randomUUID(), name: 'Transporte', parentId: null, type: TransactionType.EXPENSE },
+      { id: crypto.randomUUID(), name: 'Comida', parentId: null, type: TransactionType.EXPENSE },
+      { id: crypto.randomUUID(), name: 'Ocio', parentId: null, type: TransactionType.EXPENSE },
+    ];
+    const defaultIncomeCategories: Category[] = [
+      { id: 'cat-income-various', name: 'Ingresos Varios', parentId: null, type: TransactionType.INCOME },
+      { id: crypto.randomUUID(), name: 'Nómina', parentId: null, type: TransactionType.INCOME },
+    ];
+
+    let newCategories: Category[] = [...defaultExpenseCategories, ...defaultIncomeCategories];
+    let newTransactions: Transaction[] = [];
+    let newGoals: Goal[] = data.goals || [];
+    let newAutomationRules: AutomationRule[] = data.automationRules || [];
+    
+    // If old data exists, migrate it
+    if (data.expenseCategories && Array.isArray(data.expenseCategories)) {
+        const oldCategoryMap = new Map<string, string>(); // Map old name to new ID
+
+        const expenseCats = data.expenseCategories.map((name: string) => {
+            const id = name === 'Sin Categorizar' ? 'cat-uncategorized' : crypto.randomUUID();
+            oldCategoryMap.set(name, id);
+            return { id, name, parentId: null, type: TransactionType.EXPENSE };
+        });
+
+        const incomeCats = data.incomeCategories.map((name: string) => {
+            const id = name === 'Ingresos Varios' ? 'cat-income-various' : crypto.randomUUID();
+            oldCategoryMap.set(name, id);
+            return { id, name, parentId: null, type: TransactionType.INCOME };
+        });
+
+        newCategories = [...expenseCats, ...incomeCats];
+
+        newTransactions = (data.allTransactions || []).map((tx: any) => ({
+            ...tx,
+            date: new Date(tx.date),
+            categoryId: oldCategoryMap.get(tx.category) || (tx.type === TransactionType.EXPENSE ? 'cat-uncategorized' : 'cat-income-various'),
+        }));
+        
+        newGoals = (data.goals || []).map((goal: any) => ({
+            ...goal,
+            linkedCategoryId: oldCategoryMap.get(goal.linkedCategory) || 'cat-uncategorized',
+        }));
+
+        newAutomationRules = (data.automationRules || []).map((rule: any) => ({
+             ...rule,
+             categoryId: oldCategoryMap.get(rule.categoryId) || 'cat-uncategorized'
+        }));
+    }
+
+    return {
+        allTransactions: newTransactions,
+        categories: newCategories,
+        goals: newGoals,
+        accounts: data.accounts || [],
+        automationRules: newAutomationRules,
+        dataStructureVersion: DATA_STRUCTURE_VERSION,
+    };
+};
+
 
 interface AppState {
     allTransactions: Transaction[];
-    expenseCategories: string[];
-    incomeCategories: string[];
+    categories: Category[];
     goals: Goal[];
     accounts: Account[];
     automationRules: AutomationRule[];
+    dataStructureVersion?: number;
 }
 
 interface ActionResult {
@@ -27,15 +94,8 @@ interface ActionResult {
 
 interface AppContextType {
     allTransactions: Transaction[];
-    expenseCategories: string[];
-    incomeCategories: string[];
+    categories: Category[];
     handleConfirmImport: (newTransactions: Transaction[]) => ActionResult;
-    handleAddExpenseCategory: (category: string) => ActionResult;
-    handleUpdateExpenseCategory: (oldCategory: string, newCategory: string) => ActionResult;
-    handleDeleteExpenseCategory: (category: string) => void;
-    handleAddIncomeCategory: (category: string) => ActionResult;
-    handleUpdateIncomeCategory: (oldCategory: string, newCategory: string) => ActionResult;
-    handleDeleteIncomeCategory: (category: string) => void;
     handleDownloadBackup: () => ActionResult;
     handleRestoreBackup: (file: File, callback: (result: ActionResult) => void) => void;
     handleAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
@@ -54,6 +114,11 @@ interface AppContextType {
     handleUpdateAutomationRule: (rule: AutomationRule) => ActionResult;
     handleDeleteAutomationRule: (id: string) => void;
     handleReapplyAutomationRules: (transactionIds: string[]) => { updatedCount: number };
+    // New category handlers
+    handleAddCategory: (category: Omit<Category, 'id'>) => ActionResult;
+    handleUpdateCategory: (category: Category) => ActionResult;
+    handleDeleteCategory: (id: string) => ActionResult;
+    getCategoryWithDescendants: (categoryId: string) => string[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -62,41 +127,21 @@ const loadInitialState = (): AppState => {
     try {
         const serializedState = localStorage.getItem(STORAGE_KEY);
         if (serializedState === null) {
-            return {
-                allTransactions: [],
-                expenseCategories: INITIAL_EXPENSE_CATEGORIES,
-                incomeCategories: INITIAL_INCOME_CATEGORIES,
-                goals: [],
-                accounts: [],
-                automationRules: [],
-            };
+            return migrateDataStructure({}); // Get defaults for a new user
         }
-        const storedState = JSON.parse(serializedState);
-        
-        const loadedTransactions = (storedState.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) }));
+        const storedData = JSON.parse(serializedState);
+        return migrateDataStructure(storedData);
 
-        return {
-            allTransactions: loadedTransactions,
-            expenseCategories: storedState.expenseCategories || INITIAL_EXPENSE_CATEGORIES,
-            incomeCategories: storedState.incomeCategories || INITIAL_INCOME_CATEGORIES,
-            goals: storedState.goals || [],
-            accounts: storedState.accounts || [],
-            automationRules: storedState.automationRules || [],
-        };
     } catch (error) {
         console.error("Could not load state from localStorage", error);
-        return {
-            allTransactions: [], expenseCategories: INITIAL_EXPENSE_CATEGORIES, incomeCategories: INITIAL_INCOME_CATEGORIES,
-            goals: [], accounts: [], automationRules: [],
-        };
+        return migrateDataStructure({});
     }
 };
 
 export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const initialState = loadInitialState();
     const [allTransactions, setAllTransactions] = useState<Transaction[]>(initialState.allTransactions);
-    const [expenseCategories, setExpenseCategories] = useState<string[]>(initialState.expenseCategories);
-    const [incomeCategories, setIncomeCategories] = useState<string[]>(initialState.incomeCategories);
+    const [categories, setCategories] = useState<Category[]>(initialState.categories);
     const [accounts, setAccounts] = useState<Account[]>(initialState.accounts);
     const [goals, setGoals] = useState<Goal[]>(initialState.goals);
     const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialState.automationRules);
@@ -104,55 +149,86 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useEffect(() => {
         try {
             const stateToSave = {
-                allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules,
+                allTransactions, categories, goals, accounts, automationRules, dataStructureVersion: DATA_STRUCTURE_VERSION
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (error) {
             console.error("Could not save state to localStorage", error);
         }
-    }, [allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules]);
+    }, [allTransactions, categories, goals, accounts, automationRules]);
+    
+    const getCategoryWithDescendants = (categoryId: string): string[] => {
+        const result = [categoryId];
+        const children = categories.filter(c => c.parentId === categoryId);
+        for (const child of children) {
+            result.push(...getCategoryWithDescendants(child.id));
+        }
+        return result;
+    };
+
+    const handleAddCategory = (categoryData: Omit<Category, 'id'>): ActionResult => {
+        if (!categoryData.name.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
+        if (categories.some(c => c.name.toLowerCase() === categoryData.name.toLowerCase() && c.parentId === categoryData.parentId)) {
+            return { success: false, message: `La categoría "${categoryData.name}" ya existe en este nivel.` };
+        }
+        const newCategory: Category = { ...categoryData, id: crypto.randomUUID() };
+        setCategories(prev => [...prev, newCategory]);
+        return { success: true };
+    };
+    
+    const handleUpdateCategory = (updatedCategory: Category): ActionResult => {
+        if (!updatedCategory.name.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
+        if (categories.some(c => c.id !== updatedCategory.id && c.name.toLowerCase() === updatedCategory.name.toLowerCase() && c.parentId === updatedCategory.parentId)) {
+            return { success: false, message: `La categoría "${updatedCategory.name}" ya existe en este nivel.` };
+        }
+        setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c));
+        return { success: true };
+    };
+
+    const handleDeleteCategory = (id: string): ActionResult => {
+        const hasChildren = categories.some(c => c.parentId === id);
+        if (hasChildren) {
+            return { success: false, message: 'No se puede eliminar una categoría con subcategorías.' };
+        }
+        
+        const defaultCategoryId = categories.find(c => c.id === 'cat-uncategorized') ? 'cat-uncategorized' : (categories.find(c => c.type === TransactionType.EXPENSE)?.id || '');
+
+        setAllTransactions(prev => prev.map(t => t.categoryId === id ? { ...t, categoryId: defaultCategoryId } : t));
+        setAutomationRules(prev => prev.filter(r => r.categoryId !== id));
+        setGoals(prev => prev.map(g => g.linkedCategoryId === id ? { ...g, linkedCategoryId: defaultCategoryId } : g));
+        setCategories(prev => prev.filter(c => c.id !== id));
+        
+        return { success: true };
+    };
 
     const handleReapplyAutomationRules = (transactionIds: string[]): { updatedCount: number } => {
-        const idsToUpdate = new Set(transactionIds);
-        let updatedCount = 0;
-    
+        const idsToUpdate = new Set(transactionIds); let updatedCount = 0;
         const updatedTransactions = allTransactions.map(t => {
             if (idsToUpdate.has(t.id)) {
                 for (const rule of automationRules) {
                     if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
-                        if (t.category !== rule.categoryId) {
-                            updatedCount++;
-                            return { ...t, category: rule.categoryId }; 
-                        }
-                        break; // Rule found, no need to check others for this transaction
+                        if (t.categoryId !== rule.categoryId) { updatedCount++; return { ...t, categoryId: rule.categoryId }; }
+                        break;
                     }
                 }
             }
             return t; 
         });
-    
         setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
         return { updatedCount };
     };
 
     const handleAddAutomationRule = (ruleData: Omit<AutomationRule, 'id'>): ActionResult => {
-        if (automationRules.some(r => r.keyword.toLowerCase() === ruleData.keyword.toLowerCase())) {
-            return { success: false, message: `Ya existe una regla para la palabra clave "${ruleData.keyword}".` };
-        }
-        const newRule: AutomationRule = { ...ruleData, id: crypto.randomUUID() };
-        setAutomationRules(prev => [...prev, newRule]);
+        if (automationRules.some(r => r.keyword.toLowerCase() === ruleData.keyword.toLowerCase())) { return { success: false, message: `Ya existe una regla para la palabra clave "${ruleData.keyword}".` }; }
+        setAutomationRules(prev => [...prev, { ...ruleData, id: crypto.randomUUID() }]);
         return { success: true };
     };
     const handleUpdateAutomationRule = (updatedRule: AutomationRule): ActionResult => {
-        if (automationRules.some(r => r.id !== updatedRule.id && r.keyword.toLowerCase() === updatedRule.keyword.toLowerCase())) {
-            return { success: false, message: `Ya existe otra regla para la palabra clave "${updatedRule.keyword}".` };
-        }
+        if (automationRules.some(r => r.id !== updatedRule.id && r.keyword.toLowerCase() === updatedRule.keyword.toLowerCase())) { return { success: false, message: `Ya existe otra regla para la palabra clave "${updatedRule.keyword}".` }; }
         setAutomationRules(prev => prev.map(r => r.id === updatedRule.id ? updatedRule : r));
         return { success: true };
     };
-    const handleDeleteAutomationRule = (id: string) => {
-        setAutomationRules(prev => prev.filter(r => r.id !== id));
-    };
+    const handleDeleteAutomationRule = (id: string) => { setAutomationRules(prev => prev.filter(r => r.id !== id)); };
 
     const handleConfirmImport = (newTransactions: Transaction[]): ActionResult => {
         const combined = [...allTransactions, ...newTransactions];
@@ -161,61 +237,9 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return { success: true, message: `${newTransactions.length} transacciones importadas con éxito.` };
     };
     
-    const handleAddExpenseCategory = (newCategory: string): ActionResult => {
-        if (!newCategory.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
-        if (expenseCategories.some(c => c.toLowerCase() === newCategory.toLowerCase())) {
-            return { success: false, message: `La categoría "${newCategory}" ya existe.` };
-        }
-        setExpenseCategories(prev => [...prev, newCategory.trim()].sort());
-        return { success: true };
-    };
-
-    const handleUpdateExpenseCategory = (oldCategory: string, newCategory: string): ActionResult => {
-        if (!newCategory.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
-        if (expenseCategories.some(c => c.toLowerCase() === newCategory.toLowerCase() && c.toLowerCase() !== oldCategory.toLowerCase())) {
-            return { success: false, message: `La categoría "${newCategory}" ya existe.` };
-        }
-        setExpenseCategories(prev => prev.map(c => c === oldCategory ? newCategory.trim() : c).sort());
-        setAllTransactions(prev => prev.map(t => t.category === oldCategory ? { ...t, category: newCategory.trim() } : t));
-        setAutomationRules(prev => prev.map(r => r.categoryId === oldCategory ? { ...r, categoryId: newCategory.trim() } : r));
-        return { success: true, message: 'Categoría actualizada.' };
-    };
-
-    const handleDeleteExpenseCategory = (category: string) => {
-        setExpenseCategories(prev => prev.filter(c => c !== category));
-        setAllTransactions(prev => prev.map(t => t.category === category ? { ...t, category: 'Sin Categorizar' } : t));
-        setAutomationRules(prev => prev.filter(r => r.categoryId !== category));
-    };
-
-    const handleAddIncomeCategory = (newCategory: string): ActionResult => {
-        if (!newCategory.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
-        if (incomeCategories.some(c => c.toLowerCase() === newCategory.toLowerCase())) {
-            return { success: false, message: `La categoría "${newCategory}" ya existe.` };
-        }
-        setIncomeCategories(prev => [...prev, newCategory.trim()].sort());
-        return { success: true };
-    };
-
-    const handleUpdateIncomeCategory = (oldCategory: string, newCategory: string): ActionResult => {
-        if (!newCategory.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
-        if (incomeCategories.some(c => c.toLowerCase() === newCategory.toLowerCase() && c.toLowerCase() !== oldCategory.toLowerCase())) {
-            return { success: false, message: `La categoría "${newCategory}" ya existe.` };
-        }
-        setIncomeCategories(prev => prev.map(c => c === oldCategory ? newCategory.trim() : c).sort());
-        setAllTransactions(prev => prev.map(t => t.category === oldCategory && t.type === TransactionType.INCOME ? { ...t, category: newCategory.trim() } : t));
-         setAutomationRules(prev => prev.map(r => r.categoryId === oldCategory ? { ...r, categoryId: newCategory.trim() } : r));
-        return { success: true, message: 'Categoría actualizada.' };
-    };
-
-    const handleDeleteIncomeCategory = (category: string) => {
-        setIncomeCategories(prev => prev.filter(c => c !== category));
-        setAllTransactions(prev => prev.map(t => t.category === category && t.type === TransactionType.INCOME ? { ...t, category: 'Ingresos Varios' } : t));
-        setAutomationRules(prev => prev.filter(r => r.categoryId !== category));
-    };
-
     const handleDownloadBackup = (): ActionResult => {
         try {
-            const stateToSave = { allTransactions, expenseCategories, incomeCategories, goals, accounts, automationRules };
+            const stateToSave = { allTransactions, categories, goals, accounts, automationRules, dataStructureVersion: DATA_STRUCTURE_VERSION };
             const dataStr = JSON.stringify(stateToSave, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
             const exportFileDefaultName = `budget_backup_${new Date().toISOString().slice(0, 10)}.json`;
@@ -224,10 +248,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             linkElement.setAttribute('download', exportFileDefaultName);
             linkElement.click();
             return { success: true, message: 'Copia de seguridad descargada.' };
-        } catch (error) {
-            console.error(error);
-            return { success: false, message: 'Error al crear la copia de seguridad.' };
-        }
+        } catch (error) { console.error(error); return { success: false, message: 'Error al crear la copia de seguridad.' }; }
     };
     const handleRestoreBackup = (file: File, callback: (result: ActionResult) => void) => {
         const reader = new FileReader();
@@ -235,82 +256,40 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             try {
                 const result = event.target?.result;
                 if (typeof result !== 'string') throw new Error("Invalid file content");
-                const restoredState = JSON.parse(result);
-                
-                if (!restoredState.allTransactions || !restoredState.expenseCategories || !restoredState.incomeCategories) {
-                    throw new Error("El archivo no tiene el formato correcto.");
-                }
-                
-                setAllTransactions((restoredState.allTransactions || []).map((tx: any) => ({ ...tx, date: new Date(tx.date) })));
-                setExpenseCategories(restoredState.expenseCategories || INITIAL_EXPENSE_CATEGORIES);
-                setIncomeCategories(restoredState.incomeCategories || INITIAL_INCOME_CATEGORIES);
+                const restoredState = migrateDataStructure(JSON.parse(result));
+                if (!restoredState.allTransactions || !restoredState.categories) throw new Error("El archivo no tiene el formato correcto.");
+                setAllTransactions(restoredState.allTransactions);
+                setCategories(restoredState.categories);
                 setGoals(restoredState.goals || []);
                 setAccounts(restoredState.accounts || []);
                 setAutomationRules(restoredState.automationRules || []);
-                
                 callback({ success: true, message: 'Copia de seguridad restaurada con éxito.' });
-            } catch (error) {
-                console.error(error);
-                const message = error instanceof Error ? error.message : 'Error al procesar el archivo.';
-                callback({ success: false, message });
-            }
+            } catch (error) { const message = error instanceof Error ? error.message : 'Error al procesar el archivo.'; callback({ success: false, message }); }
         };
         reader.readAsText(file);
     };
 
-    const handleAddTransaction = (transactionData: Omit<Transaction, 'id'>) => {
-        const newTransaction: Transaction = { ...transactionData, id: crypto.randomUUID() };
-        setAllTransactions(prev => [...prev, newTransaction].sort((a, b) => b.date.getTime() - a.date.getTime()));
-    };
-
-    const handleUpdateTransaction = (updatedTransaction: Transaction) => {
-        setAllTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t).sort((a, b) => b.date.getTime() - a.date.getTime()));
-    };
-
-    const handleDeleteTransaction = (id: string) => {
-        setAllTransactions(prev => prev.filter(t => t.id !== id));
-    };
-
-    const handleAddGoal = (goalData: Omit<Goal, 'id'>) => {
-        const newGoal: Goal = { ...goalData, id: crypto.randomUUID() };
-        setGoals(prev => [...prev, newGoal]);
-    };
-
-    const handleUpdateGoal = (updatedGoal: Goal) => {
-        setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g));
-    };
-
-    const handleDeleteGoal = (id: string) => {
-        setGoals(prev => prev.filter(g => g.id !== id));
-    };
-
-    const handleAddAccount = (accountData: Omit<Account, 'id'>) => {
-        const newAccount: Account = { ...accountData, id: crypto.randomUUID() };
-        setAccounts(prev => [...prev, newAccount]);
-    };
-
-    const handleUpdateAccount = (updatedAccount: Account): ActionResult => {
-        setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc));
-        return { success: true };
-    };
-
+    const handleAddTransaction = (transactionData: Omit<Transaction, 'id'>) => { setAllTransactions(prev => [...prev, { ...transactionData, id: crypto.randomUUID() }].sort((a, b) => b.date.getTime() - a.date.getTime())); };
+    const handleUpdateTransaction = (updatedTransaction: Transaction) => { setAllTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t).sort((a, b) => b.date.getTime() - a.date.getTime())); };
+    const handleDeleteTransaction = (id: string) => { setAllTransactions(prev => prev.filter(t => t.id !== id)); };
+    const handleAddGoal = (goalData: Omit<Goal, 'id'>) => { setGoals(prev => [...prev, { ...goalData, id: crypto.randomUUID() }]); };
+    const handleUpdateGoal = (updatedGoal: Goal) => { setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g)); };
+    const handleDeleteGoal = (id: string) => { setGoals(prev => prev.filter(g => g.id !== id)); };
+    const handleAddAccount = (accountData: Omit<Account, 'id'>) => { setAccounts(prev => [...prev, { ...accountData, id: crypto.randomUUID() }]); };
+    const handleUpdateAccount = (updatedAccount: Account): ActionResult => { setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc)); return { success: true }; };
     const handleDeleteAccount = (id: string): ActionResult => {
-        if (allTransactions.some(t => t.accountId === id)) {
-            return { success: false, message: 'No se puede eliminar una cuenta con transacciones asociadas.' };
-        }
-        setAccounts(prev => prev.filter(acc => acc.id !== id));
-        return { success: true };
+        if (allTransactions.some(t => t.accountId === id)) { return { success: false, message: 'No se puede eliminar una cuenta con transacciones asociadas.' }; }
+        setAccounts(prev => prev.filter(acc => acc.id !== id)); return { success: true };
     };
 
     const value = {
-        allTransactions, expenseCategories, incomeCategories, handleConfirmImport,
-        handleAddExpenseCategory, handleUpdateExpenseCategory, handleDeleteExpenseCategory,
-        handleAddIncomeCategory, handleUpdateIncomeCategory, handleDeleteIncomeCategory,
+        allTransactions, categories, handleConfirmImport,
         handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
         handleDeleteTransaction, goals, handleAddGoal, handleUpdateGoal, handleDeleteGoal,
         accounts, handleAddAccount, handleUpdateAccount, handleDeleteAccount,
         automationRules, handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule,
-        handleReapplyAutomationRules
+        handleReapplyAutomationRules, handleAddCategory, handleUpdateCategory, handleDeleteCategory,
+        getCategoryWithDescendants,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -318,8 +297,6 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
 export const useAppContext = (): AppContextType => {
     const context = useContext(AppContext);
-    if (context === undefined) {
-        throw new Error('useAppContext must be used within an AppProvider');
-    }
+    if (context === undefined) { throw new Error('useAppContext must be used within an AppProvider'); }
     return context;
 };

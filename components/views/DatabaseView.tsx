@@ -14,10 +14,10 @@ declare global {
 }
 
 const ITEMS_PER_PAGE = 10;
-type SortableKeys = keyof Transaction | 'accountName';
+type SortableKeys = keyof Transaction | 'accountName' | 'categoryName';
 
 const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
-    const { handleDeleteTransaction, accounts } = useAppContext();
+    const { handleDeleteTransaction, accounts, categories } = useAppContext();
     const { confirm } = useModal();
     const { addToast } = useToast();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,25 +27,31 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
 
     const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
+    const categoryNameMap = useMemo(() => new Map(categories.map(cat => [cat.id, cat.name])), [categories]);
+    
     const getAccountName = (accountId: string) => accountNameMap.get(accountId) || 'Cuenta Desconocida';
+    const getCategoryName = (categoryId: string) => categoryNameMap.get(categoryId) || 'Categoría Desconocida';
     
     const sortedTransactions = useMemo(() => {
         let sortableItems = [...transactions];
         if (sortConfig.key !== null) {
             sortableItems.sort((a, b) => {
                 let aValue: any, bValue: any;
-                if (sortConfig.key === 'accountName') {
-                    aValue = getAccountName(a.accountId); bValue = getAccountName(b.accountId);
-                } else {
-                    aValue = a[sortConfig.key as keyof Transaction]; bValue = b[sortConfig.key as keyof Transaction];
-                }
+                if (sortConfig.key === 'accountName') aValue = getAccountName(a.accountId);
+                else if (sortConfig.key === 'categoryName') aValue = getCategoryName(a.categoryId);
+                else aValue = a[sortConfig.key as keyof Transaction];
+
+                if (sortConfig.key === 'accountName') bValue = getAccountName(b.accountId);
+                else if (sortConfig.key === 'categoryName') bValue = getCategoryName(b.categoryId);
+                else bValue = b[sortConfig.key as keyof Transaction];
+                
                 if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
                 if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
             });
         }
         return sortableItems;
-    }, [transactions, sortConfig, getAccountName]);
+    }, [transactions, sortConfig, getAccountName, getCategoryName]);
 
     const lastTransactionDate = useMemo(() => sortedTransactions.length > 0 ? sortedTransactions[0].date : null, [sortedTransactions]);
     const totalPages = Math.ceil(sortedTransactions.length / ITEMS_PER_PAGE);
@@ -63,75 +69,32 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     
     const handleDelete = async (id: string, description: string) => {
         const confirmed = await confirm('Confirmar Eliminación', `¿Estás seguro de que quieres eliminar la transacción "${description}"?`);
-        if (confirmed) {
-            handleDeleteTransaction(id);
-            addToast({ type: 'success', message: 'Transacción eliminada.' });
-        }
+        if (confirmed) { handleDeleteTransaction(id); addToast({ type: 'success', message: 'Transacción eliminada.' }); }
     };
     
     const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const formatDate = (date: Date) => new Date(date).toLocaleDateString('es-ES');
 
-    const handleExportCSV = () => {
-        const headers = ['Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría', 'Cuenta', 'Notas'];
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.join(',') + '\n' + transactions.map(t => [
-            new Date(t.date).toLocaleDateString('es-ES'), `"${t.description.replace(/"/g, '""')}"`,
-            t.amount.toString().replace('.', ','), t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
-            t.category, getAccountName(t.accountId), `"${(t.notes || '').replace(/"/g, '""')}"`
-        ].join(',')).join('\n');
-        
-        const link = document.createElement("a");
-        link.setAttribute("href", encodeURI(csvContent));
-        link.setAttribute("download", "transacciones.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setIsExportMenuOpen(false);
-    };
-
     const handleExportXLSX = () => {
-        if (typeof window.XLSX === 'undefined') {
-            addToast({ type: 'error', message: 'La librería de exportación a Excel no se ha cargado.' }); return;
-        }
-        const sheetData = transactions.map(t => ({
-            'Fecha': new Date(t.date).toLocaleDateString('es-ES'),
-            'Descripción': t.description,
-            'Monto': t.type === TransactionType.EXPENSE ? -t.amount : t.amount,
-            'Tipo': t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
-            'Categoría': t.category,
-            'Cuenta': getAccountName(t.accountId),
-            'Notas': t.notes || ''
-        }));
+        if (typeof window.XLSX === 'undefined') { addToast({ type: 'error', message: 'La librería de exportación a Excel no se ha cargado.' }); return; }
+        const sheetData = transactions.map(t => ({ 'Fecha': new Date(t.date).toLocaleDateString('es-ES'), 'Descripción': t.description, 'Monto': t.type === TransactionType.EXPENSE ? -t.amount : t.amount, 'Tipo': t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto', 'Categoría': getCategoryName(t.categoryId), 'Cuenta': getAccountName(t.accountId), 'Notas': t.notes || '' }));
         const ws = window.XLSX.utils.json_to_sheet(sheetData);
         const wb = window.XLSX.utils.book_new();
         window.XLSX.utils.book_append_sheet(wb, ws, "Transacciones");
-        window.XLSX.writeFile(wb, "transacciones.xlsx");
-        setIsExportMenuOpen(false);
+        window.XLSX.writeFile(wb, "transacciones.xlsx"); setIsExportMenuOpen(false);
     };
 
     const handleExportPDF = () => {
-        if (typeof window.jspdf?.jsPDF === 'undefined') {
-            addToast({ type: 'error', message: 'La librería de exportación a PDF no se ha cargado.' }); return;
-        }
+        if (typeof window.jspdf?.jsPDF === 'undefined') { addToast({ type: 'error', message: 'La librería de exportación a PDF no se ha cargado.' }); return; }
         const { jsPDF } = window.jspdf; const doc = new jsPDF();
-        if (typeof (doc as any).autoTable !== 'function') {
-            addToast({ type: 'error', message: 'El plugin para tablas PDF (autoTable) no se ha cargado.' }); return;
-        }
+        if (typeof (doc as any).autoTable !== 'function') { addToast({ type: 'error', message: 'El plugin para tablas PDF (autoTable) no se ha cargado.' }); return; }
         doc.text("Reporte de Transacciones", 14, 16);
         (doc as any).autoTable({
             head: [["Fecha", "Descripción", "Monto", "Tipo", "Categoría", "Cuenta"]],
-            body: transactions.map(t => [
-                new Date(t.date).toLocaleDateString('es-ES'),
-                t.description,
-                `${t.type === TransactionType.EXPENSE ? '-' : '+'}${formatCurrency(t.amount)}`,
-                t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
-                t.category,
-                getAccountName(t.accountId)
-            ]),
+            body: transactions.map(t => [ new Date(t.date).toLocaleDateString('es-ES'), t.description, `${t.type === TransactionType.EXPENSE ? '-' : '+'}${formatCurrency(t.amount)}`, t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto', getCategoryName(t.categoryId), getAccountName(t.accountId) ]),
             startY: 20, theme: 'grid', headStyles: { fillColor: [79, 70, 229] },
         });
-        doc.save("transacciones.pdf");
-        setIsExportMenuOpen(false);
+        doc.save("transacciones.pdf"); setIsExportMenuOpen(false);
     };
 
     return (
@@ -145,7 +108,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                     <div className="relative">
                         <button onClick={() => setIsExportMenuOpen(p => !p)} className="flex items-center space-x-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-lg"><FileDownIcon className="w-5 h-5" /><span>Exportar</span></button>
                         {isExportMenuOpen && <div className="absolute right-0 mt-2 w-56 origin-top-right bg-slate-700 rounded-md shadow-lg z-10">
-                            <div className="py-1"><button onClick={handleExportCSV} className="w-full text-left flex items-center space-x-3 px-4 py-2 text-sm hover:bg-slate-600"><FileTextIcon className="w-4 h-4" /><span>Exportar como CSV</span></button><button onClick={handleExportXLSX} className="w-full text-left flex items-center space-x-3 px-4 py-2 text-sm hover:bg-slate-600"><FileSpreadsheetIcon className="w-4 h-4" /><span>Exportar como Excel</span></button><button onClick={handleExportPDF} className="w-full text-left flex items-center space-x-3 px-4 py-2 text-sm hover:bg-slate-600"><FileTextIcon className="w-4 h-4" /><span>Exportar como PDF</span></button></div>
+                            <div className="py-1"><button onClick={handleExportXLSX} className="w-full text-left flex items-center space-x-3 px-4 py-2 text-sm hover:bg-slate-600"><FileSpreadsheetIcon className="w-4 h-4" /><span>Exportar como Excel</span></button><button onClick={handleExportPDF} className="w-full text-left flex items-center space-x-3 px-4 py-2 text-sm hover:bg-slate-600"><FileTextIcon className="w-4 h-4" /><span>Exportar como PDF</span></button></div>
                         </div>}
                     </div>
                     <button onClick={handleAdd} className="flex items-center space-x-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold py-2 px-4 rounded-lg"><PlusCircleIcon className="w-5 h-5" /><span>Añadir Transacción</span></button>
@@ -159,7 +122,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                         <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('accountName')}>Cuenta{getSortIndicator('accountName')}</th>
                         <th className="p-3 text-right cursor-pointer hover:text-white" onClick={() => requestSort('amount')}>Monto{getSortIndicator('amount')}</th>
                         <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('type')}>Tipo{getSortIndicator('type')}</th>
-                        <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('category')}>Categoría{getSortIndicator('category')}</th>
+                        <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('categoryName')}>Categoría{getSortIndicator('categoryName')}</th>
                         <th className="p-3">Acciones</th>
                     </tr></thead>
                     <tbody>
@@ -170,7 +133,7 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                                 <td className="p-3 text-xs text-gray-400">{getAccountName(t.accountId)}</td>
                                 <td className={`p-3 text-right font-semibold ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>{t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}</td>
                                 <td className="p-3"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${t.type === TransactionType.INCOME ? 'bg-emerald-900/50 text-emerald-300' : 'bg-rose-900/50 text-rose-300'}`}>{t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto'}</span></td>
-                                <td className="p-3">{t.category}</td>
+                                <td className="p-3">{getCategoryName(t.categoryId)}</td>
                                 <td className="p-3"><div className="flex items-center space-x-3"><button onClick={() => handleEdit(t)} className="text-gray-400 hover:text-violet-400" title="Editar"><PencilIcon className="w-4 h-4" /></button><button onClick={() => handleDelete(t.id, t.description)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button></div></td>
                             </tr>
                         )) : (<tr><td colSpan={7} className="text-center p-8 text-gray-500">No hay transacciones.</td></tr>)}

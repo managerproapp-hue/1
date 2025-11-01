@@ -1,7 +1,14 @@
-// FIX: Removed self-import of TransactionType.
+// FIX: Replaced self-import with enum definition to fix circular dependency.
 export enum TransactionType {
-  INCOME = 'INCOME',
-  EXPENSE = 'EXPENSE',
+  INCOME = 'income',
+  EXPENSE = 'expense',
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  parentId: string | null;
+  type: TransactionType;
 }
 
 export interface Transaction {
@@ -10,7 +17,7 @@ export interface Transaction {
   description: string;
   amount: number;
   type: TransactionType;
-  category: string;
+  categoryId: string;
   accountId: string;
   notes?: string;
 }
@@ -26,9 +33,9 @@ export interface StagedTransaction {
   description: string;
   amount: number;
   type: TransactionType;
-  category: string;
+  categoryId: string;
   isValid: boolean;
-  accountId: string; // Changed from source: string
+  accountId: string;
 }
 
 export interface ProcessingError {
@@ -40,7 +47,7 @@ export interface Goal {
   id: string;
   name: string;
   targetAmount: number;
-  linkedCategory: string;
+  linkedCategoryId: string;
 }
 
 export interface Account {

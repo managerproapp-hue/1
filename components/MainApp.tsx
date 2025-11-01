@@ -67,7 +67,6 @@ const MainApp: React.FC = () => {
     setSelectedYears(prev => {
         const isSelected = prev.includes(yearToToggle);
         if (isSelected) {
-            // Prevent deselecting the last remaining year
             if (prev.length === 1) return prev;
             return prev.filter(y => y !== yearToToggle);
         } else {
@@ -76,8 +75,8 @@ const MainApp: React.FC = () => {
     });
   };
 
-  const handleNavigateToSearch = (category: string) => {
-    setSearchFilters({ category, term: '' });
+  const handleNavigateToSearch = (categoryId: string) => {
+    setSearchFilters({ category: categoryId, term: '' });
     setActiveTab('buscador');
   };
 
