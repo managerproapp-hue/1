@@ -8,13 +8,21 @@ const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { 
 interface AnalysisViewProps {
     selectedYears: number[];
     month: number | 'all';
+    selectedAccountId: string | 'all';
 }
 
 type ChartMode = 'monthlyBreakdown' | 'yearlyTotalComparison' | 'yearlyMonthComparison';
 
-const AnalysisView: React.FC<AnalysisViewProps> = ({ selectedYears, month }) => {
+const AnalysisView: React.FC<AnalysisViewProps> = ({ selectedYears, month, selectedAccountId }) => {
     const { allTransactions, expenseCategories } = useAppContext();
     const monthNames = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
+
+    const transactionsForAnalysis = useMemo(() => {
+        if (selectedAccountId === 'all') {
+            return allTransactions;
+        }
+        return allTransactions.filter(t => t.accountId === selectedAccountId);
+    }, [allTransactions, selectedAccountId]);
 
     const chartMode: ChartMode = useMemo(() => {
         if (selectedYears.length === 1) {
@@ -30,7 +38,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ selectedYears, month }) => 
         const data: { [category: string]: { name: string; Gasto: number }[] } = {};
 
         // Pre-filter transactions to only what's needed for the selected years/month
-        const relevantTransactions = allTransactions.filter(t => 
+        const relevantTransactions = transactionsForAnalysis.filter(t => 
             t.type === TransactionType.EXPENSE &&
             selectedYears.includes(t.date.getFullYear())
         );
@@ -63,7 +71,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ selectedYears, month }) => 
             }
         });
         return data;
-    }, [allTransactions, expenseCategories, selectedYears, month, chartMode, monthNames]);
+    }, [transactionsForAnalysis, expenseCategories, selectedYears, month, chartMode, monthNames]);
 
     const totalSpendByCategory = useMemo(() => {
         const totals: { [key: string]: number } = {};

@@ -86,7 +86,7 @@ const MainApp: React.FC = () => {
         case 'comparacion':
             return <AccountComparisonView transactions={filteredTransactionsByDate} />;
         case 'analisis':
-            return <BudgetsView selectedYears={selectedYears} month={month} />;
+            return <BudgetsView selectedYears={selectedYears} month={month} selectedAccountId={selectedAccountId} />;
         case 'buscador':
             return <SearchView />;
         case 'backup':
@@ -135,7 +135,7 @@ const MainApp: React.FC = () => {
                 <button onClick={() => setMonth('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === 'all' ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Anual</button>
                 {months.map((m, i) => <button key={m} onClick={() => setMonth(i)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === i ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{m}</button>)}
             </div>
-             {activeTab === 'dashboard' && accounts.length > 0 && (
+             {['dashboard', 'analisis'].includes(activeTab) && accounts.length > 0 && (
                 <div className="flex items-center space-x-2 flex-wrap gap-y-2 border-t border-slate-700 pt-4 mt-2">
                     <button onClick={() => setSelectedAccountId('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedAccountId === 'all' ? 'bg-sky-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Todas las Cuentas</button>
                     {accounts.map(acc => <button key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedAccountId === acc.id ? 'bg-sky-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{acc.accountName}</button>)}
