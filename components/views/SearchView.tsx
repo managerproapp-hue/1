@@ -7,14 +7,18 @@ import AddTransactionModal from '../modals/AddTransactionModal';
 const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (date: Date) => new Date(date).toLocaleDateString('es-ES');
 
+type SortableKeys = keyof Transaction | 'accountName';
+
 const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
     const { expenseCategories, incomeCategories, accounts, handleDeleteTransaction } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [transactionToEdit, setTransactionToEdit] = useState<Transaction | undefined>(undefined);
+    const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
 
     const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
+    const getAccountName = (accountId: string) => accountNameMap.get(accountId) || 'Cuenta Desconocida';
 
     const allCategories = useMemo(() => {
         return [...new Set([...expenseCategories, ...incomeCategories])].sort();
@@ -35,6 +39,19 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
             handleDeleteTransaction(id);
         }
     };
+    
+    const requestSort = (key: SortableKeys) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIndicator = (key: SortableKeys) => {
+        if (sortConfig.key !== key) return null;
+        return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+    };
 
 
     const searchResults = useMemo(() => {
@@ -45,12 +62,10 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
 
         let filtered = transactions;
 
-        // 1. Filtrar por categoría
         if (selectedCategory !== 'all') {
             filtered = filtered.filter(t => t.category === selectedCategory);
         }
 
-        // 2. Filtrar por término de búsqueda en descripción o notas
         if (trimmedSearchTerm) {
             const lowercasedTerm = trimmedSearchTerm.toLowerCase();
             filtered = filtered.filter(t =>
@@ -58,9 +73,30 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
                 (t.notes && t.notes.toLowerCase().includes(lowercasedTerm))
             );
         }
+        
+        // Apply sorting
+        return filtered.sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
 
-        return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [selectedCategory, searchTerm, transactions]);
+            if (sortConfig.key === 'accountName') {
+                aValue = getAccountName(a.accountId);
+                bValue = getAccountName(b.accountId);
+            } else {
+                aValue = a[sortConfig.key as keyof Transaction];
+                bValue = b[sortConfig.key as keyof Transaction];
+            }
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+
+    }, [selectedCategory, searchTerm, transactions, sortConfig, getAccountName]);
 
     const resultMetrics = useMemo(() => {
         if (searchResults.length === 0) {
@@ -84,7 +120,6 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
             <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
                 <h2 className="text-2xl font-semibold mb-4">Buscador de Transacciones</h2>
                 <div className="flex flex-col md:flex-row gap-4 items-center">
-                    {/* Desplegable de Categorías */}
                     <div className="w-full md:w-1/3">
                          <select
                             value={selectedCategory}
@@ -98,7 +133,6 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
                         </select>
                     </div>
 
-                    {/* Barra de Búsqueda */}
                     <div className="relative w-full md:w-2/3">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <SearchIcon className="h-5 w-5 text-gray-400" />
@@ -126,7 +160,6 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
 
                     {searchResults.length > 0 ? (
                         <>
-                            {/* --- Métricas Clave --- */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 <div className="bg-slate-700/50 p-4 rounded-lg text-center">
                                     <p className="text-sm text-gray-400">Balance Total</p>
@@ -142,28 +175,41 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
                                 </div>
                             </div>
 
-                            {/* --- Lista de Transacciones --- */}
-                            <div className="max-h-96 overflow-y-auto">
-                                <div className="space-y-2">
-                                {searchResults.map(t => (
-                                    <div key={t.id} className="p-3 bg-slate-700 rounded-md flex justify-between items-center">
-                                        <div className="flex-grow">
-                                            <p className="font-semibold">{t.description}</p>
-                                            <p className="text-xs text-gray-400">{formatDate(t.date)} - {t.category} - {accountNameMap.get(t.accountId) || 'Cuenta Desconocida'}</p>
-                                            {t.notes && <p className="text-xs text-gray-400 italic mt-1">{t.notes}</p>}
-                                        </div>
-                                        <div className="flex items-center space-x-4 ml-4">
-                                            <p className={`font-semibold text-lg whitespace-nowrap ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
-                                            </p>
-                                            <div className="flex items-center space-x-3 border-l border-slate-600 pl-4">
-                                                <button onClick={() => handleEdit(t)} className="text-gray-400 hover:text-violet-400" title="Editar"><PencilIcon className="w-4 h-4" /></button>
-                                                <button onClick={() => handleDelete(t.id, t.description)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-700 text-sm text-gray-400">
+                                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('date')}>Fecha{getSortIndicator('date')}</th>
+                                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('description')}>Descripción{getSortIndicator('description')}</th>
+                                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('accountName')}>Cuenta{getSortIndicator('accountName')}</th>
+                                            <th className="p-3 text-right cursor-pointer hover:text-white" onClick={() => requestSort('amount')}>Monto{getSortIndicator('amount')}</th>
+                                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('category')}>Categoría{getSortIndicator('category')}</th>
+                                            <th className="p-3">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {searchResults.map(t => (
+                                            <tr key={t.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                                                <td className="p-3">{formatDate(t.date)}</td>
+                                                <td className="p-3">
+                                                    {t.description}
+                                                    {t.notes && <p className="text-xs text-gray-400 italic mt-1">{t.notes}</p>}
+                                                </td>
+                                                <td className="p-3 text-xs text-gray-400">{getAccountName(t.accountId)}</td>
+                                                <td className={`p-3 text-right font-semibold ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                    {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
+                                                </td>
+                                                <td className="p-3">{t.category}</td>
+                                                <td className="p-3">
+                                                    <div className="flex items-center space-x-3">
+                                                        <button onClick={() => handleEdit(t)} className="text-gray-400 hover:text-violet-400" title="Editar"><PencilIcon className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleDelete(t.id, t.description)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </>
                     ) : (

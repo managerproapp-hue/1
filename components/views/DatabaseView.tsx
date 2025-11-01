@@ -15,6 +15,7 @@ declare global {
 }
 
 const ITEMS_PER_PAGE = 10;
+type SortableKeys = keyof Transaction | 'accountName';
 
 const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
     const { handleDeleteTransaction, accounts } = useAppContext();
@@ -22,16 +23,68 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     const [transactionToEdit, setTransactionToEdit] = useState<Transaction | undefined>(undefined);
     const [currentPage, setCurrentPage] = useState(1);
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
 
     const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
     const getAccountName = (accountId: string) => accountNameMap.get(accountId) || 'Cuenta Desconocida';
+    
+    const sortedTransactions = useMemo(() => {
+        let sortableItems = [...transactions];
+        if (sortConfig.key !== null) {
+            sortableItems.sort((a, b) => {
+                let aValue: any;
+                let bValue: any;
 
-    const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
+                if (sortConfig.key === 'accountName') {
+                    aValue = getAccountName(a.accountId);
+                    bValue = getAccountName(b.accountId);
+                } else {
+                    aValue = a[sortConfig.key as keyof Transaction];
+                    bValue = b[sortConfig.key as keyof Transaction];
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [transactions, sortConfig, getAccountName]);
+
+    const lastTransactionDate = useMemo(() => {
+        if (sortedTransactions.length > 0) {
+            // As transactions are sorted by date descending by default, the first one is the latest.
+            return sortedTransactions[0].date;
+        }
+        return null;
+    }, [sortedTransactions]);
+
+
+    const totalPages = Math.ceil(sortedTransactions.length / ITEMS_PER_PAGE);
 
     const paginatedTransactions = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        return transactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-    }, [transactions, currentPage]);
+        return sortedTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [sortedTransactions, currentPage]);
+
+    const requestSort = (key: SortableKeys) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+        setCurrentPage(1); // Reset to first page on sort
+    };
+
+    const getSortIndicator = (key: SortableKeys) => {
+        if (sortConfig.key !== key) return null;
+        return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+    };
+
 
     const handleEdit = (transaction: Transaction) => {
         setTransactionToEdit(transaction);
@@ -143,7 +196,14 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     return (
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
             <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-                <h2 className="text-2xl font-semibold">Base de Datos de Transacciones</h2>
+                <div>
+                    <h2 className="text-2xl font-semibold">Base de Datos de Transacciones</h2>
+                    {lastTransactionDate && (
+                        <p className="text-sm text-gray-400 mt-1">
+                            Último movimiento registrado: {formatDate(lastTransactionDate)}
+                        </p>
+                    )}
+                </div>
                 <div className="flex items-center space-x-2">
                     <div className="relative">
                         <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="flex items-center space-x-2 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
@@ -179,12 +239,12 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                 <table className="w-full text-left">
                     <thead>
                         <tr className="border-b border-slate-700 text-sm text-gray-400">
-                            <th className="p-3">Fecha</th>
-                            <th className="p-3">Descripción</th>
-                            <th className="p-3">Cuenta</th>
-                            <th className="p-3 text-right">Monto</th>
-                            <th className="p-3">Tipo</th>
-                            <th className="p-3">Categoría</th>
+                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('date')}>Fecha{getSortIndicator('date')}</th>
+                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('description')}>Descripción{getSortIndicator('description')}</th>
+                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('accountName')}>Cuenta{getSortIndicator('accountName')}</th>
+                            <th className="p-3 text-right cursor-pointer hover:text-white" onClick={() => requestSort('amount')}>Monto{getSortIndicator('amount')}</th>
+                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('type')}>Tipo{getSortIndicator('type')}</th>
+                            <th className="p-3 cursor-pointer hover:text-white" onClick={() => requestSort('category')}>Categoría{getSortIndicator('category')}</th>
                             <th className="p-3">Acciones</th>
                         </tr>
                     </thead>
