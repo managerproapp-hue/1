@@ -1,15 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
-import { SearchIcon, XIcon } from '../icons';
+import { SearchIcon, XIcon, PencilIcon, TrashIcon } from '../icons';
 import { Transaction, TransactionType } from '../../types';
+import AddTransactionModal from '../modals/AddTransactionModal';
 
 const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (date: Date) => new Date(date).toLocaleDateString('es-ES');
 
 const SearchView: React.FC = () => {
-    const { allTransactions, expenseCategories, incomeCategories, accounts } = useAppContext();
+    const { allTransactions, expenseCategories, incomeCategories, accounts, handleDeleteTransaction } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [transactionToEdit, setTransactionToEdit] = useState<Transaction | undefined>(undefined);
 
     const accountNameMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.accountName])), [accounts]);
 
@@ -21,6 +24,18 @@ const SearchView: React.FC = () => {
         setSearchTerm('');
         setSelectedCategory('all');
     };
+
+    const handleEdit = (transaction: Transaction) => {
+        setTransactionToEdit(transaction);
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = (id: string, description: string) => {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar la transacción "${description}"?`)) {
+            handleDeleteTransaction(id);
+        }
+    };
+
 
     const searchResults = useMemo(() => {
         const trimmedSearchTerm = searchTerm.trim();
@@ -51,9 +66,14 @@ const SearchView: React.FC = () => {
         if (searchResults.length === 0) {
             return { total: 0, count: 0, average: 0 };
         }
-        const total = searchResults.reduce((sum, t) => sum + t.amount, 0);
+        const total = searchResults.reduce((sum, t) => {
+            if (t.type === TransactionType.EXPENSE) return sum - t.amount;
+            if (t.type === TransactionType.INCOME) return sum + t.amount;
+            return sum;
+        }, 0);
         const count = searchResults.length;
-        const average = total / count;
+        const average = searchResults.length > 0 ? total / searchResults.length : 0;
+
         return { total, count, average };
     }, [searchResults]);
 
@@ -109,16 +129,16 @@ const SearchView: React.FC = () => {
                             {/* --- Métricas Clave --- */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 <div className="bg-slate-700/50 p-4 rounded-lg text-center">
-                                    <p className="text-sm text-gray-400">Total Encontrado</p>
-                                    <p className="text-2xl font-bold">{formatCurrency(resultMetrics.total)}</p>
+                                    <p className="text-sm text-gray-400">Balance Total</p>
+                                    <p className={`text-2xl font-bold ${resultMetrics.total >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(resultMetrics.total)}</p>
                                 </div>
                                 <div className="bg-slate-700/50 p-4 rounded-lg text-center">
                                     <p className="text-sm text-gray-400">N.º de Transacciones</p>
                                     <p className="text-2xl font-bold">{resultMetrics.count}</p>
                                 </div>
                                 <div className="bg-slate-700/50 p-4 rounded-lg text-center">
-                                    <p className="text-sm text-gray-400">Promedio</p>
-                                    <p className="text-2xl font-bold">{formatCurrency(resultMetrics.average)}</p>
+                                    <p className="text-sm text-gray-400">Balance Promedio</p>
+                                    <p className={`text-2xl font-bold ${resultMetrics.average >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(resultMetrics.average)}</p>
                                 </div>
                             </div>
 
@@ -126,15 +146,21 @@ const SearchView: React.FC = () => {
                             <div className="max-h-96 overflow-y-auto">
                                 <div className="space-y-2">
                                 {searchResults.map(t => (
-                                    <div key={t.id} className="p-3 bg-slate-700 rounded-md flex justify-between items-start">
-                                        <div>
+                                    <div key={t.id} className="p-3 bg-slate-700 rounded-md flex justify-between items-center">
+                                        <div className="flex-grow">
                                             <p className="font-semibold">{t.description}</p>
-                                            <p className="text-xs text-gray-400">{formatDate(t.date)} - {accountNameMap.get(t.accountId) || 'Cuenta Desconocida'}</p>
+                                            <p className="text-xs text-gray-400">{formatDate(t.date)} - {t.category} - {accountNameMap.get(t.accountId) || 'Cuenta Desconocida'}</p>
                                             {t.notes && <p className="text-xs text-gray-400 italic mt-1">{t.notes}</p>}
                                         </div>
-                                        <p className={`font-semibold text-lg ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                            {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
-                                        </p>
+                                        <div className="flex items-center space-x-4 ml-4">
+                                            <p className={`font-semibold text-lg whitespace-nowrap ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
+                                            </p>
+                                            <div className="flex items-center space-x-3 border-l border-slate-600 pl-4">
+                                                <button onClick={() => handleEdit(t)} className="text-gray-400 hover:text-violet-400" title="Editar"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDelete(t.id, t.description)} className="text-gray-400 hover:text-rose-500" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
                                 </div>
@@ -145,6 +171,11 @@ const SearchView: React.FC = () => {
                     )}
                 </div>
             )}
+            <AddTransactionModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                transactionToEdit={transactionToEdit} 
+            />
             <style>{`
                 @keyframes fade-in {
                     from { opacity: 0; transform: translateY(-10px); }
