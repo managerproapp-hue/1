@@ -80,12 +80,18 @@ const MainApp: React.FC = () => {
     setActiveTab('buscador');
   };
 
+  const handleImportComplete = () => {
+    setActiveTab('buscador');
+    setSearchFilters({ category: 'cat-uncategorized', term: '' });
+  };
+
+
   const renderContent = () => {
     switch(activeTab) {
         case 'dashboard':
             return <Dashboard transactions={filteredTransactions} onNavigateToSearch={handleNavigateToSearch} />;
         case 'importar':
-            return <Import setActiveTab={setActiveTab} />;
+            return <Import setActiveTab={setActiveTab} onImportComplete={handleImportComplete} />;
         case 'base':
             return <DatabaseView transactions={filteredTransactions} />;
         case 'comparacion':

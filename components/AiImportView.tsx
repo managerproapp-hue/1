@@ -13,20 +13,12 @@ declare global {
 type Step = 'upload' | 'mapping' | 'review';
 type CSVMapping = { date: number | null; description: number | null; amount: number | null; };
 
-const applyAutomationRules = (transactions: StagedTransaction[], rules: AutomationRule[]): StagedTransaction[] => {
-    if (rules.length === 0) return transactions;
-    return transactions.map(t => {
-        for (const rule of rules) {
-            if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
-                return { ...t, categoryId: rule.categoryId };
-            }
-        }
-        return t;
-    });
-};
 
-const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => void }> = ({ setActiveTab }) => {
-    const { handleConfirmImport, categories, accounts, automationRules } = useAppContext();
+const AiImportView: React.FC<{ 
+    setActiveTab: (tab: 'dashboard' | 'settings') => void,
+    onImportComplete: () => void;
+}> = ({ setActiveTab, onImportComplete }) => {
+    const { handleConfirmImport, categories, accounts } = useAppContext();
     const { addToast } = useToast();
     
     const [step, setStep] = useState<Step>('upload');
@@ -97,8 +89,8 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
             const parsedTransactions = JSON.parse(response.text.trim());
             if (!Array.isArray(parsedTransactions)) throw new Error("La respuesta de la IA no es un array.");
             const initialStaged = parsedTransactions.map(parseAIRow).filter(t => t.isValid);
-            const autoCategorized = applyAutomationRules(initialStaged, automationRules);
-            setStagedTransactions(autoCategorized); setStep('review');
+            setStagedTransactions(initialStaged); 
+            setStep('review');
         } catch (error) { addToast({ type: 'error', message: 'Error al procesar los datos con la IA.' }); } finally { setIsLoading(false); }
     };
     
@@ -113,8 +105,8 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
     const handleMappingConfirm = () => {
         if (mapping.date === null || mapping.description === null || mapping.amount === null) { addToast({ type: 'warning', message: 'Por favor, mapea Fecha, Descripción y Monto.' }); return; }
         const initialStaged = csvData.map(parseMappedRow).filter(t => t.isValid);
-        const autoCategorized = applyAutomationRules(initialStaged, automationRules);
-        setStagedTransactions(autoCategorized); setStep('review');
+        setStagedTransactions(initialStaged); 
+        setStep('review');
     };
     
     const parseMappedRow = (row: string[], i: number): StagedTransaction => {
@@ -161,7 +153,8 @@ const AiImportView: React.FC<{ setActiveTab: (tab: 'dashboard' | 'settings') => 
         const transactionsToImport: Transaction[] = stagedTransactions.map(({ id, isValid, ...rest }) => ({ ...rest, id: crypto.randomUUID(), date: new Date(`${rest.date}T00:00:00`), }));
         const result = handleConfirmImport(transactionsToImport);
         addToast({ type: 'success', message: result.message! });
-        resetState(); setActiveTab('dashboard');
+        resetState(); 
+        onImportComplete();
     };
     
     const CategorySelect: React.FC<{ value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; type: TransactionType }> = ({ value, onChange, type }) => {

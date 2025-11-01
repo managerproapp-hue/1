@@ -7,7 +7,13 @@ const AiImportView = lazy(() => import('./AiImportView'));
 
 type Tab = 'dashboard' | 'importar' | 'base' | 'backup' | 'settings';
 
-const Import: React.FC<{ setActiveTab: (tab: Tab) => void; }> = ({ setActiveTab }) => {
+interface ImportProps {
+    setActiveTab: (tab: Tab) => void;
+    onImportComplete: () => void;
+}
+
+
+const Import: React.FC<ImportProps> = ({ setActiveTab, onImportComplete }) => {
     
     const renderLoading = () => (
         <div className="flex flex-col items-center justify-center text-center p-10 bg-slate-800 rounded-xl">
@@ -19,7 +25,10 @@ const Import: React.FC<{ setActiveTab: (tab: Tab) => void; }> = ({ setActiveTab 
     return (
         <div>
             <Suspense fallback={renderLoading()}>
-                <AiImportView setActiveTab={setActiveTab as (tab: 'dashboard' | 'settings') => void} />
+                <AiImportView 
+                  setActiveTab={setActiveTab as (tab: 'dashboard' | 'settings') => void} 
+                  onImportComplete={onImportComplete}
+                />
             </Suspense>
         </div>
     );

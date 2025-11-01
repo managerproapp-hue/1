@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode, FC, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, FC, useEffect, useCallback, useMemo } from 'react';
 import { Transaction, Goal, Account, AutomationRule, TransactionType, Category } from '../types';
 
 const STORAGE_KEY = 'budget-app-data';
@@ -157,16 +157,16 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
     }, [allTransactions, categories, goals, accounts, automationRules]);
     
-    const getCategoryWithDescendants = (categoryId: string): string[] => {
+    const getCategoryWithDescendants = useCallback((categoryId: string): string[] => {
         const result = [categoryId];
         const children = categories.filter(c => c.parentId === categoryId);
         for (const child of children) {
             result.push(...getCategoryWithDescendants(child.id));
         }
         return result;
-    };
+    }, [categories]);
 
-    const handleAddCategory = (categoryData: Omit<Category, 'id'>): ActionResult => {
+    const handleAddCategory = useCallback((categoryData: Omit<Category, 'id'>): ActionResult => {
         if (!categoryData.name.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
         if (categories.some(c => c.name.toLowerCase() === categoryData.name.toLowerCase() && c.parentId === categoryData.parentId)) {
             return { success: false, message: `La categoría "${categoryData.name}" ya existe en este nivel.` };
@@ -174,18 +174,18 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const newCategory: Category = { ...categoryData, id: crypto.randomUUID() };
         setCategories(prev => [...prev, newCategory]);
         return { success: true };
-    };
+    }, [categories]);
     
-    const handleUpdateCategory = (updatedCategory: Category): ActionResult => {
+    const handleUpdateCategory = useCallback((updatedCategory: Category): ActionResult => {
         if (!updatedCategory.name.trim()) return { success: false, message: 'El nombre no puede estar vacío.' };
         if (categories.some(c => c.id !== updatedCategory.id && c.name.toLowerCase() === updatedCategory.name.toLowerCase() && c.parentId === updatedCategory.parentId)) {
             return { success: false, message: `La categoría "${updatedCategory.name}" ya existe en este nivel.` };
         }
         setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c));
         return { success: true };
-    };
+    }, [categories]);
 
-    const handleDeleteCategory = (id: string): ActionResult => {
+    const handleDeleteCategory = useCallback((id: string): ActionResult => {
         const hasChildren = categories.some(c => c.parentId === id);
         if (hasChildren) {
             return { success: false, message: 'No se puede eliminar una categoría con subcategorías.' };
@@ -199,9 +199,9 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setCategories(prev => prev.filter(c => c.id !== id));
         
         return { success: true };
-    };
+    }, [categories]);
 
-    const handleReapplyAutomationRules = (transactionIds: string[]): { updatedCount: number } => {
+    const handleReapplyAutomationRules = useCallback((transactionIds: string[]): { updatedCount: number } => {
         const idsToUpdate = new Set(transactionIds); let updatedCount = 0;
         const updatedTransactions = allTransactions.map(t => {
             if (idsToUpdate.has(t.id)) {
@@ -216,28 +216,32 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         });
         setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
         return { updatedCount };
-    };
+    }, [allTransactions, automationRules]);
 
-    const handleAddAutomationRule = (ruleData: Omit<AutomationRule, 'id'>): ActionResult => {
+    const handleAddAutomationRule = useCallback((ruleData: Omit<AutomationRule, 'id'>): ActionResult => {
         if (automationRules.some(r => r.keyword.toLowerCase() === ruleData.keyword.toLowerCase())) { return { success: false, message: `Ya existe una regla para la palabra clave "${ruleData.keyword}".` }; }
         setAutomationRules(prev => [...prev, { ...ruleData, id: crypto.randomUUID() }]);
         return { success: true };
-    };
-    const handleUpdateAutomationRule = (updatedRule: AutomationRule): ActionResult => {
+    }, [automationRules]);
+    
+    const handleUpdateAutomationRule = useCallback((updatedRule: AutomationRule): ActionResult => {
         if (automationRules.some(r => r.id !== updatedRule.id && r.keyword.toLowerCase() === updatedRule.keyword.toLowerCase())) { return { success: false, message: `Ya existe otra regla para la palabra clave "${updatedRule.keyword}".` }; }
         setAutomationRules(prev => prev.map(r => r.id === updatedRule.id ? updatedRule : r));
         return { success: true };
-    };
-    const handleDeleteAutomationRule = (id: string) => { setAutomationRules(prev => prev.filter(r => r.id !== id)); };
-
-    const handleConfirmImport = (newTransactions: Transaction[]): ActionResult => {
-        const combined = [...allTransactions, ...newTransactions];
-        const uniqueTransactions = Array.from(new Map(combined.map(t => [`${t.date.toISOString()}-${t.description}-${t.amount}-${t.accountId}`, t])).values());
-        setAllTransactions(uniqueTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        return { success: true, message: `${newTransactions.length} transacciones importadas con éxito.` };
-    };
+    }, [automationRules]);
     
-    const handleDownloadBackup = (): ActionResult => {
+    const handleDeleteAutomationRule = useCallback((id: string) => { setAutomationRules(prev => prev.filter(r => r.id !== id)); }, []);
+
+    const handleConfirmImport = useCallback((newTransactions: Transaction[]): ActionResult => {
+        setAllTransactions(prev => {
+            const combined = [...prev, ...newTransactions];
+            const uniqueTransactions = Array.from(new Map(combined.map(t => [`${t.date.toISOString()}-${t.description}-${t.amount}-${t.accountId}`, t])).values());
+            return uniqueTransactions.sort((a, b) => b.date.getTime() - a.date.getTime());
+        });
+        return { success: true, message: `${newTransactions.length} transacciones importadas con éxito.` };
+    }, []);
+    
+    const handleDownloadBackup = useCallback((): ActionResult => {
         try {
             const stateToSave = { allTransactions, categories, goals, accounts, automationRules, dataStructureVersion: DATA_STRUCTURE_VERSION };
             const dataStr = JSON.stringify(stateToSave, null, 2);
@@ -249,8 +253,9 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             linkElement.click();
             return { success: true, message: 'Copia de seguridad descargada.' };
         } catch (error) { console.error(error); return { success: false, message: 'Error al crear la copia de seguridad.' }; }
-    };
-    const handleRestoreBackup = (file: File, callback: (result: ActionResult) => void) => {
+    }, [allTransactions, categories, goals, accounts, automationRules]);
+
+    const handleRestoreBackup = useCallback((file: File, callback: (result: ActionResult) => void) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
@@ -267,22 +272,23 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
             } catch (error) { const message = error instanceof Error ? error.message : 'Error al procesar el archivo.'; callback({ success: false, message }); }
         };
         reader.readAsText(file);
-    };
+    }, []);
 
-    const handleAddTransaction = (transactionData: Omit<Transaction, 'id'>) => { setAllTransactions(prev => [...prev, { ...transactionData, id: crypto.randomUUID() }].sort((a, b) => b.date.getTime() - a.date.getTime())); };
-    const handleUpdateTransaction = (updatedTransaction: Transaction) => { setAllTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t).sort((a, b) => b.date.getTime() - a.date.getTime())); };
-    const handleDeleteTransaction = (id: string) => { setAllTransactions(prev => prev.filter(t => t.id !== id)); };
-    const handleAddGoal = (goalData: Omit<Goal, 'id'>) => { setGoals(prev => [...prev, { ...goalData, id: crypto.randomUUID() }]); };
-    const handleUpdateGoal = (updatedGoal: Goal) => { setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g)); };
-    const handleDeleteGoal = (id: string) => { setGoals(prev => prev.filter(g => g.id !== id)); };
-    const handleAddAccount = (accountData: Omit<Account, 'id'>) => { setAccounts(prev => [...prev, { ...accountData, id: crypto.randomUUID() }]); };
-    const handleUpdateAccount = (updatedAccount: Account): ActionResult => { setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc)); return { success: true }; };
-    const handleDeleteAccount = (id: string): ActionResult => {
+    const handleAddTransaction = useCallback((transactionData: Omit<Transaction, 'id'>) => { setAllTransactions(prev => [...prev, { ...transactionData, id: crypto.randomUUID() }].sort((a, b) => b.date.getTime() - a.date.getTime())); }, []);
+    const handleUpdateTransaction = useCallback((updatedTransaction: Transaction) => { setAllTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t).sort((a, b) => b.date.getTime() - a.date.getTime())); }, []);
+    const handleDeleteTransaction = useCallback((id: string) => { setAllTransactions(prev => prev.filter(t => t.id !== id)); }, []);
+    const handleAddGoal = useCallback((goalData: Omit<Goal, 'id'>) => { setGoals(prev => [...prev, { ...goalData, id: crypto.randomUUID() }]); }, []);
+    const handleUpdateGoal = useCallback((updatedGoal: Goal) => { setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g)); }, []);
+    const handleDeleteGoal = useCallback((id: string) => { setGoals(prev => prev.filter(g => g.id !== id)); }, []);
+    const handleAddAccount = useCallback((accountData: Omit<Account, 'id'>) => { setAccounts(prev => [...prev, { ...accountData, id: crypto.randomUUID() }]); }, []);
+    const handleUpdateAccount = useCallback((updatedAccount: Account): ActionResult => { setAccounts(prev => prev.map(acc => acc.id === updatedAccount.id ? updatedAccount : acc)); return { success: true }; }, []);
+    
+    const handleDeleteAccount = useCallback((id: string): ActionResult => {
         if (allTransactions.some(t => t.accountId === id)) { return { success: false, message: 'No se puede eliminar una cuenta con transacciones asociadas.' }; }
         setAccounts(prev => prev.filter(acc => acc.id !== id)); return { success: true };
-    };
+    }, [allTransactions]);
 
-    const value = {
+    const value = useMemo(() => ({
         allTransactions, categories, handleConfirmImport,
         handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
         handleDeleteTransaction, goals, handleAddGoal, handleUpdateGoal, handleDeleteGoal,
@@ -290,7 +296,15 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         automationRules, handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule,
         handleReapplyAutomationRules, handleAddCategory, handleUpdateCategory, handleDeleteCategory,
         getCategoryWithDescendants,
-    };
+    }), [
+        allTransactions, categories, goals, accounts, automationRules,
+        handleConfirmImport, handleDownloadBackup, handleRestoreBackup, handleAddTransaction, handleUpdateTransaction,
+        handleDeleteTransaction, handleAddGoal, handleUpdateGoal, handleDeleteGoal,
+        handleAddAccount, handleUpdateAccount, handleDeleteAccount,
+        handleAddAutomationRule, handleUpdateAutomationRule, handleDeleteAutomationRule,
+        handleReapplyAutomationRules, handleAddCategory, handleUpdateCategory, handleDeleteCategory,
+        getCategoryWithDescendants
+    ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
