@@ -113,7 +113,7 @@ interface AppContextType {
     handleAddAutomationRule: (rule: Omit<AutomationRule, 'id'>) => ActionResult;
     handleUpdateAutomationRule: (rule: AutomationRule) => ActionResult;
     handleDeleteAutomationRule: (id: string) => void;
-    handleReapplyAutomationRules: (transactionIds: string[]) => { updatedCount: number };
+    handleReapplyAutomationRules: (transactionIds: string[]) => { updatedCount: number; matchedButAlreadyCategorized: number };
     // New category handlers
     handleAddCategory: (category: Omit<Category, 'id'>) => ActionResult;
     handleUpdateCategory: (category: Category) => ActionResult;
@@ -201,9 +201,10 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return { success: true };
     }, [categories]);
 
-    const handleReapplyAutomationRules = useCallback((transactionIds: string[]): { updatedCount: number } => {
+    const handleReapplyAutomationRules = useCallback((transactionIds: string[]): { updatedCount: number; matchedButAlreadyCategorized: number } => {
         const idsToUpdate = new Set(transactionIds);
         let updatedCount = 0;
+        let matchedButAlreadyCategorized = 0;
 
         const sortedRules = [...automationRules].sort((a, b) => b.keyword.length - a.keyword.length);
 
@@ -214,22 +215,29 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
             let bestMatchRule: AutomationRule | null = null;
             for (const rule of sortedRules) {
-                if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.trim().toLowerCase())) {
                     bestMatchRule = rule;
-                    break; // Found the most specific rule, stop searching.
+                    break;
                 }
             }
 
-            if (bestMatchRule && t.categoryId !== bestMatchRule.categoryId) {
-                updatedCount++;
-                return { ...t, categoryId: bestMatchRule.categoryId, automatedByRuleId: bestMatchRule.id };
+            if (bestMatchRule) {
+                if (t.categoryId !== bestMatchRule.categoryId) {
+                    updatedCount++;
+                    return { ...t, categoryId: bestMatchRule.categoryId, automatedByRuleId: bestMatchRule.id };
+                } else {
+                    matchedButAlreadyCategorized++;
+                }
             }
-
-            return t; // No applicable rule found or category is already correct
+            
+            return t;
         });
         
-        setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
-        return { updatedCount };
+        if (updatedCount > 0) {
+            setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        }
+
+        return { updatedCount, matchedButAlreadyCategorized };
     }, [allTransactions, automationRules]);
 
     const handleAddAutomationRule = useCallback((ruleData: Omit<AutomationRule, 'id'>): ActionResult => {

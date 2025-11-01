@@ -66,7 +66,7 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
         return filtered.sort((a, b) => {
             let aValue: any, bValue: any;
             if (sortConfig.key === 'accountName') aValue = getAccountName(a.accountId);
-            else if (sortConfig.key === 'categoryName') bValue = getCategoryName(a.categoryId);
+            else if (sortConfig.key === 'categoryName') aValue = getCategoryName(a.categoryId);
             else aValue = a[sortConfig.key as keyof Transaction];
 
             if (sortConfig.key === 'accountName') bValue = getAccountName(b.accountId);
@@ -87,10 +87,22 @@ const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFilter
 
     const handleReapplyRulesClick = () => {
         const transactionIdsToProcess = searchResults.map(t => t.id);
-        if (transactionIdsToProcess.length === 0) { addToast({ type: 'info', message: 'No hay transacciones "Sin Categorizar" para procesar.' }); return; }
-        const { updatedCount } = handleReapplyAutomationRules(transactionIdsToProcess);
-        if (updatedCount > 0) addToast({ type: 'success', message: `${updatedCount} transacciones han sido re-categorizadas.` });
-        else addToast({ type: 'info', message: 'No se aplicaron nuevas categorías.' });
+        if (transactionIdsToProcess.length === 0) { 
+            addToast({ type: 'info', message: 'No hay transacciones en la vista actual para procesar.' }); 
+            return; 
+        }
+        
+        const { updatedCount, matchedButAlreadyCategorized } = handleReapplyAutomationRules(transactionIdsToProcess);
+
+        if (updatedCount > 0) {
+            addToast({ type: 'success', message: `${updatedCount} transacciones han sido re-categorizadas.` });
+        } else {
+            if (matchedButAlreadyCategorized > 0) {
+                 addToast({ type: 'info', message: `Se encontraron ${matchedButAlreadyCategorized} coincidencias, pero ya estaban en la categoría correcta.` });
+            } else {
+                 addToast({ type: 'info', message: 'No se encontraron coincidencias con tus reglas para estas transacciones.' });
+            }
+        }
     };
 
     const renderCategoryOptions = () => {
