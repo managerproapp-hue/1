@@ -3,16 +3,25 @@ import { useAppContext } from '../../contexts/AppContext';
 import { SearchIcon, XIcon, PencilIcon, TrashIcon } from '../icons';
 import { Transaction, TransactionType } from '../../types';
 import AddTransactionModal from '../modals/AddTransactionModal';
+import { useModal } from '../../contexts/ModalContext';
+import { useToast } from '../../contexts/ToastContext';
 
 const formatCurrency = (value: number) => `€${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const formatDate = (date: Date) => new Date(date).toLocaleDateString('es-ES');
 
 type SortableKeys = keyof Transaction | 'accountName';
 
-const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
+interface SearchViewProps {
+    transactions: Transaction[];
+    filters: { category: string; term: string; };
+    onFiltersChange: (newFilters: { category: string; term: string; }) => void;
+}
+
+const SearchView: React.FC<SearchViewProps> = ({ transactions, filters, onFiltersChange }) => {
     const { expenseCategories, incomeCategories, accounts, handleDeleteTransaction } = useAppContext();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const { confirm } = useModal();
+    const { addToast } = useToast();
+    
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [transactionToEdit, setTransactionToEdit] = useState<Transaction | undefined>(undefined);
     const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
@@ -25,8 +34,7 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
     }, [expenseCategories, incomeCategories]);
     
     const handleClearSearch = () => {
-        setSearchTerm('');
-        setSelectedCategory('all');
+        onFiltersChange({ category: 'all', term: '' });
     };
 
     const handleEdit = (transaction: Transaction) => {
@@ -34,9 +42,11 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
         setIsModalOpen(true);
     };
 
-    const handleDelete = (id: string, description: string) => {
-        if (window.confirm(`¿Estás seguro de que quieres eliminar la transacción "${description}"?`)) {
+    const handleDelete = async (id: string, description: string) => {
+        const confirmed = await confirm('Confirmar Eliminación', `¿Estás seguro de que quieres eliminar la transacción "${description}"?`);
+        if (confirmed) {
             handleDeleteTransaction(id);
+            addToast({ type: 'success', message: 'Transacción eliminada.' });
         }
     };
     
@@ -55,15 +65,15 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
 
 
     const searchResults = useMemo(() => {
-        const trimmedSearchTerm = searchTerm.trim();
-        if (selectedCategory === 'all' && !trimmedSearchTerm) {
+        const trimmedSearchTerm = filters.term.trim();
+        if (filters.category === 'all' && !trimmedSearchTerm) {
             return []; // No mostrar resultados si no hay búsqueda activa
         }
 
         let filtered = transactions;
 
-        if (selectedCategory !== 'all') {
-            filtered = filtered.filter(t => t.category === selectedCategory);
+        if (filters.category !== 'all') {
+            filtered = filtered.filter(t => t.category === filters.category);
         }
 
         if (trimmedSearchTerm) {
@@ -96,7 +106,7 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
             return 0;
         });
 
-    }, [selectedCategory, searchTerm, transactions, sortConfig, getAccountName]);
+    }, [filters.category, filters.term, transactions, sortConfig, getAccountName]);
 
     const resultMetrics = useMemo(() => {
         if (searchResults.length === 0) {
@@ -113,7 +123,7 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
         return { total, count, average };
     }, [searchResults]);
 
-    const isSearchActive = selectedCategory !== 'all' || searchTerm.trim() !== '';
+    const isSearchActive = filters.category !== 'all' || filters.term.trim() !== '';
 
     return (
         <div className="space-y-6">
@@ -122,8 +132,8 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                     <div className="w-full md:w-1/3">
                          <select
-                            value={selectedCategory}
-                            onChange={e => setSelectedCategory(e.target.value)}
+                            value={filters.category}
+                            onChange={e => onFiltersChange({ ...filters, category: e.target.value })}
                             className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500 h-full"
                         >
                             <option value="all">Todas las Categorías</option>
@@ -140,8 +150,8 @@ const SearchView: React.FC<{ transactions: Transaction[] }> = ({ transactions })
                         <input
                             type="text"
                             placeholder="Buscar por descripción o anotaciones..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            value={filters.term}
+                            onChange={e => onFiltersChange({ ...filters, term: e.target.value })}
                             className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 pl-10 pr-4 text-white focus:ring-violet-500 focus:border-violet-500"
                         />
                     </div>

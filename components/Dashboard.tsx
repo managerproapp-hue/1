@@ -40,7 +40,12 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
-const Dashboard: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
+interface DashboardProps {
+    transactions: Transaction[];
+    onNavigateToSearch: (category: string) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ transactions, onNavigateToSearch }) => {
   const { allTransactions, goals } = useAppContext();
 
   const { totalIncome, totalExpenses, netMargin, savingsRate } = useMemo(() => {
@@ -171,13 +176,13 @@ const Dashboard: React.FC<{ transactions: Transaction[] }> = ({ transactions }) 
         </div>
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
             <h3 className="text-xl font-semibold mb-4">Distribución de Gastos</h3>
-            <CustomPieChart data={expenseDistributionData} colors={pieChartColors} />
+            <CustomPieChart data={expenseDistributionData} colors={pieChartColors} onSliceClick={onNavigateToSearch} />
         </div>
       </div>
        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
           <h3 className="text-xl font-semibold mb-4">Gastos por Categoría</h3>
-          <CustomBarChart data={expenseDistributionData} bars={[{ dataKey: 'value', fillColor: '#ec4899' }]} />
+          <CustomBarChart data={expenseDistributionData} bars={[{ dataKey: 'value', fillColor: '#ec4899' }]} onBarClick={onNavigateToSearch} />
         </div>
         <div className="bg-slate-800 p-6 rounded-xl shadow-lg">
           <h3 className="text-xl font-semibold mb-4">Ingresos por Categoría</h3>

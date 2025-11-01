@@ -5,11 +5,12 @@ import { ChartData } from '../../types';
 interface CustomBarChartProps {
   data: ChartData[];
   bars: { dataKey: string; fillColor: string }[];
+  onBarClick?: (category: string) => void;
 }
 
 const formatYAxis = (tickItem: number) => `€${tickItem.toLocaleString()}`;
 
-export const CustomBarChart: React.FC<CustomBarChartProps> = ({ data, bars }) => {
+export const CustomBarChart: React.FC<CustomBarChartProps> = ({ data, bars, onBarClick }) => {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} margin={{ top: 5, right: 20, left: 30, bottom: 5 }} barGap={4}>
@@ -27,7 +28,14 @@ export const CustomBarChart: React.FC<CustomBarChartProps> = ({ data, bars }) =>
         />
         <Legend wrapperStyle={{fontSize: "14px"}}/>
         {bars.map(bar => (
-            <Bar key={bar.dataKey} dataKey={bar.dataKey} fill={bar.fillColor} radius={[4, 4, 0, 0]} />
+            <Bar 
+                key={bar.dataKey} 
+                dataKey={bar.dataKey} 
+                fill={bar.fillColor} 
+                radius={[4, 4, 0, 0]} 
+                onClick={(data) => onBarClick && onBarClick(data.name)}
+                style={{ cursor: onBarClick ? 'pointer' : 'default' }}
+            />
         ))}
       </BarChart>
     </ResponsiveContainer>

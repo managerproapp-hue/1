@@ -32,6 +32,7 @@ const MainApp: React.FC = () => {
   const [selectedYears, setSelectedYears] = useState<number[]>([new Date().getFullYear()]);
   const [month, setMonth] = useState<number | 'all'>('all');
   const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>('all');
+  const [searchFilters, setSearchFilters] = useState<{ category: string; term: string }>({ category: 'all', term: '' });
   
   const filteredTransactionsByDate = useMemo(() => {
     return allTransactions.filter(t => {
@@ -75,10 +76,15 @@ const MainApp: React.FC = () => {
     });
   };
 
+  const handleNavigateToSearch = (category: string) => {
+    setSearchFilters({ category, term: '' });
+    setActiveTab('buscador');
+  };
+
   const renderContent = () => {
     switch(activeTab) {
         case 'dashboard':
-            return <Dashboard transactions={filteredTransactions} />;
+            return <Dashboard transactions={filteredTransactions} onNavigateToSearch={handleNavigateToSearch} />;
         case 'importar':
             return <Import setActiveTab={setActiveTab} />;
         case 'base':
@@ -88,13 +94,13 @@ const MainApp: React.FC = () => {
         case 'analisis':
             return <BudgetsView selectedYears={selectedYears} month={month} selectedAccountId={selectedAccountId} />;
         case 'buscador':
-            return <SearchView transactions={filteredTransactions} />;
+            return <SearchView transactions={filteredTransactions} filters={searchFilters} onFiltersChange={setSearchFilters} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':
             return <SettingsView />;
         default:
-            return <Dashboard transactions={filteredTransactions} />;
+            return <Dashboard transactions={filteredTransactions} onNavigateToSearch={handleNavigateToSearch} />;
     }
   }
 

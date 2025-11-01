@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
 import { ChartData } from '../../types';
@@ -6,6 +5,7 @@ import { ChartData } from '../../types';
 interface CustomPieChartProps {
   data: ChartData[];
   colors: string[];
+  onSliceClick?: (category: string) => void;
 }
 
 const renderActiveShape = (props: any) => {
@@ -55,7 +55,7 @@ const renderActiveShape = (props: any) => {
 };
 
 
-export const CustomPieChart: React.FC<CustomPieChartProps> = ({ data, colors }) => {
+export const CustomPieChart: React.FC<CustomPieChartProps> = ({ data, colors, onSliceClick }) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const onPieEnter = useCallback((_: any, index: number) => {
         setActiveIndex(index);
@@ -75,6 +75,8 @@ export const CustomPieChart: React.FC<CustomPieChartProps> = ({ data, colors }) 
             fill="#8884d8"
             dataKey="value"
             onMouseEnter={onPieEnter}
+            onClick={(data) => onSliceClick && onSliceClick(data.name)}
+            style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
         >
           {data.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
