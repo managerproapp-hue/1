@@ -9,15 +9,17 @@ const DatabaseView = lazy(() => import('./views/DatabaseView'));
 const BackupView = lazy(() => import('./views/BackupView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const AccountComparisonView = lazy(() => import('./views/AccountComparisonView'));
+const BudgetsView = lazy(() => import('./views/BudgetsView'));
 
 
-type ActiveTab = 'dashboard' | 'importar' | 'base' | 'comparacion' | 'backup' | 'settings';
+type ActiveTab = 'dashboard' | 'importar' | 'base' | 'comparacion' | 'analisis' | 'backup' | 'settings';
 
 const TABS: { id: ActiveTab; label: string }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'importar', label: 'Importar Datos' },
     { id: 'base', label: 'Base de Datos' },
     { id: 'comparacion', label: 'Comparación' },
+    { id: 'analisis', label: 'Análisis' },
     { id: 'backup', label: 'Copia de Seguridad' },
     { id: 'settings', label: 'Configuración' },
 ];
@@ -63,6 +65,8 @@ const MainApp: React.FC = () => {
             return <DatabaseView transactions={filteredTransactions} />;
         case 'comparacion':
             return <AccountComparisonView transactions={filteredTransactionsByDate} />;
+        case 'analisis':
+            return <BudgetsView transactions={filteredTransactions} />;
         case 'backup':
             return <BackupView setActiveTab={setActiveTab}/>;
         case 'settings':

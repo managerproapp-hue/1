@@ -31,7 +31,6 @@ const GoalProgressCard: React.FC<GoalProgressCardProps> = ({ name, currentAmount
     );
 };
 
-
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-ES', {
         style: 'currency',

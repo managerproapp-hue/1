@@ -54,14 +54,15 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
 
     // --- MANEJADORES DE EXPORTACIÓN ---
     const handleExportCSV = () => {
-        const headers = ['Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría', 'Cuenta'];
+        const headers = ['Fecha', 'Descripción', 'Monto', 'Tipo', 'Categoría', 'Cuenta', 'Notas'];
         const rows = transactions.map(t => [
             new Date(t.date).toLocaleDateString('es-ES'),
             `"${t.description.replace(/"/g, '""')}"`,
             t.amount.toString().replace('.', ','),
             t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
             t.category,
-            getAccountName(t.accountId)
+            getAccountName(t.accountId),
+            `"${(t.notes || '').replace(/"/g, '""')}"`
         ]);
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" // Added BOM for Excel compatibility
             + headers.join(',') + '\n' 
@@ -88,7 +89,8 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
             'Monto': t.amount,
             'Tipo': t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
             'Categoría': t.category,
-            'Cuenta': getAccountName(t.accountId)
+            'Cuenta': getAccountName(t.accountId),
+            'Notas': t.notes || ''
         }));
 
         const ws = window.XLSX.utils.json_to_sheet(dataToExport);
@@ -114,14 +116,15 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
     
         doc.text("Reporte de Transacciones", 14, 16);
     
-        const tableColumn = ["Fecha", "Descripción", "Monto", "Tipo", "Categoría", "Cuenta"];
+        const tableColumn = ["Fecha", "Descripción", "Monto", "Tipo", "Categoría", "Cuenta", "Notas"];
         const tableRows = transactions.map(t => [
             new Date(t.date).toLocaleDateString('es-ES'),
             t.description,
             `${t.type === TransactionType.INCOME ? '+' : '-'} ${formatCurrency(t.amount)}`,
             t.type === TransactionType.INCOME ? 'Ingreso' : 'Gasto',
             t.category,
-            getAccountName(t.accountId)
+            getAccountName(t.accountId),
+            t.notes || ''
         ]);
     
         (doc as any).autoTable({
@@ -189,7 +192,10 @@ const DatabaseView: React.FC<{ transactions: Transaction[] }> = ({ transactions 
                         {paginatedTransactions.length > 0 ? paginatedTransactions.map(t => (
                             <tr key={t.id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
                                 <td className="p-3">{formatDate(t.date)}</td>
-                                <td className="p-3">{t.description}</td>
+                                <td className="p-3">
+                                    {t.description}
+                                    {t.notes && <p className="text-xs text-gray-400 italic mt-1">{t.notes}</p>}
+                                </td>
                                 <td className="p-3 text-xs text-gray-400">{getAccountName(t.accountId)}</td>
                                 <td className={`p-3 text-right font-semibold ${t.type === TransactionType.INCOME ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}

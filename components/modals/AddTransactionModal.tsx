@@ -21,6 +21,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
     const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
     const [category, setCategory] = useState('');
     const [accountId, setAccountId] = useState('');
+    const [notes, setNotes] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -31,6 +32,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                 setType(transactionToEdit.type);
                 setCategory(transactionToEdit.category);
                 setAccountId(transactionToEdit.accountId || '');
+                setNotes(transactionToEdit.notes || '');
             } else {
                 setDate(formatDate(new Date()));
                 setDescription('');
@@ -38,6 +40,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                 setType(TransactionType.EXPENSE);
                 setCategory(expenseCategories[0] || 'Sin Categorizar');
                 setAccountId(accounts[0]?.id || '');
+                setNotes('');
             }
         }
     }, [isOpen, transactionToEdit, isEditMode, expenseCategories, accounts, incomeCategories]);
@@ -67,6 +70,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
             type,
             category,
             accountId,
+            notes,
         };
         
         if (isEditMode) {
@@ -148,6 +152,11 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ isOpen, onClo
                             </select>
                         </div>
                     )}
+
+                    <div>
+                        <label htmlFor="notes" className="block text-sm font-medium text-gray-300 mb-1">Anotaciones (Opcional)</label>
+                        <textarea id="notes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Ej: Regalo de cumpleaños para María" rows={2} className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-violet-500 focus:border-violet-500"></textarea>
+                    </div>
 
                     <div className="flex justify-end space-x-4 pt-4">
                         <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">Cancelar</button>

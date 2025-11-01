@@ -10,7 +10,8 @@ export interface Transaction {
   amount: number;
   type: TransactionType;
   category: string;
-  accountId: string; // Changed from source?: string
+  accountId: string;
+  notes?: string; // Campo para anotaciones
 }
 
 export interface ChartData {
