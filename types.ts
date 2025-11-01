@@ -57,7 +57,6 @@ export interface RecurringTransaction {
   amount?: number;
   type: TransactionType;
   category: string;
-  accountId: string;
   frequency: 'monthly'; // Por ahora solo mensual, extensible en el futuro
   dayOfMonth?: number;
   startDate: Date;

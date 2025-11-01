@@ -155,7 +155,7 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
                         amount: recurring.amount ?? 0,
                         type: recurring.type,
                         category: recurring.category,
-                        accountId: recurring.accountId,
+                        accountId: accounts[0].id, // Assign to the first account by default
                         recurringTransactionId: recurring.id,
                     });
                 }
@@ -321,9 +321,6 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const handleDeleteAccount = (id: string): ActionResult => {
         if (allTransactions.some(t => t.accountId === id)) {
             return { success: false, message: 'No se puede eliminar una cuenta con transacciones asociadas.' };
-        }
-        if (recurringTransactions.some(rt => rt.accountId === id)) {
-            return { success: false, message: 'No se puede eliminar una cuenta con transacciones recurrentes asociadas.' };
         }
         setAccounts(prev => prev.filter(acc => acc.id !== id));
         return { success: true };

@@ -24,7 +24,6 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
     const [amount, setAmount] = useState<number | ''>('');
     const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
     const [category, setCategory] = useState('');
-    const [accountId, setAccountId] = useState('');
     const [dayOfMonth, setDayOfMonth] = useState<number | ''>('');
     const [startDate, setStartDate] = useState(formatDateForInput(new Date()));
     const [endDate, setEndDate] = useState('');
@@ -37,7 +36,6 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
                 setAmount(recurringTransactionToEdit.amount ?? '');
                 setType(recurringTransactionToEdit.type);
                 setCategory(recurringTransactionToEdit.category);
-                setAccountId(recurringTransactionToEdit.accountId);
                 setDayOfMonth(recurringTransactionToEdit.dayOfMonth ?? '');
                 setStartDate(formatDateForInput(new Date(recurringTransactionToEdit.startDate)));
                 setHasEndDate(!!recurringTransactionToEdit.endDate);
@@ -48,7 +46,6 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
                 setAmount('');
                 setType(TransactionType.EXPENSE);
                 setCategory(expenseCategories[0] || '');
-                setAccountId(accounts[0]?.id || '');
                 setDayOfMonth('');
                 setStartDate(formatDateForInput(new Date()));
                 setEndDate('');
@@ -66,8 +63,8 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!description || !accountId || !startDate) {
-            addToast({ type: 'error', message: 'Descripción, cuenta y fecha de inicio son obligatorias.' });
+        if (!description || !startDate) {
+            addToast({ type: 'error', message: 'Descripción y fecha de inicio son obligatorias.' });
             return;
         }
         if (dayOfMonth !== '' && (Number(dayOfMonth) < 1 || Number(dayOfMonth) > 31)) {
@@ -88,7 +85,6 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
             amount: amount === '' ? undefined : Number(amount),
             type,
             category,
-            accountId,
             frequency: 'monthly' as const,
             dayOfMonth: dayOfMonth === '' ? undefined : Number(dayOfMonth),
             startDate: new Date(`${startDate}T00:00:00`),
@@ -121,9 +117,11 @@ const AddRecurringTransactionModal: React.FC<AddRecurringTransactionModalProps> 
                         <div><label htmlFor="rec-amount" className="block text-sm font-medium mb-1">Monto (€)</label><input id="rec-amount" type="number" value={amount} onChange={e => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="0.00 (Opcional)" min="0" step="0.01" className="w-full input-style" /></div>
                         <div><label className="block text-sm font-medium mb-1">Tipo</label><div className="flex space-x-4 items-center h-full"><label className="flex items-center"><input type="radio" name="type" value={TransactionType.EXPENSE} checked={type === TransactionType.EXPENSE} onChange={() => setType(TransactionType.EXPENSE)} className="radio-style" /><span className="ml-2">Gasto</span></label><label className="flex items-center"><input type="radio" name="type" value={TransactionType.INCOME} checked={type === TransactionType.INCOME} onChange={() => setType(TransactionType.INCOME)} className="radio-style" /><span className="ml-2">Ingreso</span></label></div></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label htmlFor="rec-account" className="block text-sm font-medium mb-1">Cuenta</label><select id="rec-account" value={accountId} onChange={e => setAccountId(e.target.value)} required className="w-full input-style">{accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.accountName}</option>)}</select></div>
-                        <div><label htmlFor="rec-category" className="block text-sm font-medium mb-1">Categoría</label><select id="rec-category" value={category} onChange={e => setCategory(e.target.value)} required className="w-full input-style">{(type === TransactionType.EXPENSE ? expenseCategories : incomeCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                    <div>
+                        <label htmlFor="rec-category" className="block text-sm font-medium mb-1">Categoría</label>
+                        <select id="rec-category" value={category} onChange={e => setCategory(e.target.value)} required className="w-full input-style">
+                            {(type === TransactionType.EXPENSE ? expenseCategories : incomeCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
                     </div>
 
                     {/* Recurrence Rules */}
