@@ -1,3 +1,4 @@
+// FIX: Removed self-import of TransactionType.
 export enum TransactionType {
   INCOME = 'INCOME',
   EXPENSE = 'EXPENSE',
@@ -11,7 +12,8 @@ export interface Transaction {
   type: TransactionType;
   category: string;
   accountId: string;
-  notes?: string; // Campo para anotaciones
+  notes?: string;
+  recurringTransactionId?: string; // ID de la transacción recurrente de origen
 }
 
 export interface ChartData {
@@ -47,4 +49,17 @@ export interface Account {
   bankName: string;
   accountName: string;
   accountNumber?: string;
+}
+
+export interface RecurringTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  type: TransactionType;
+  category: string;
+  accountId: string;
+  frequency: 'monthly'; // Por ahora solo mensual, extensible en el futuro
+  dayOfMonth: number;
+  startDate: Date;
+  endDate?: Date;
 }
