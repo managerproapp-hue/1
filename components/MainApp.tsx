@@ -29,7 +29,7 @@ const TABS: { id: ActiveTab; label: string }[] = [
 const MainApp: React.FC = () => {
   const { allTransactions, accounts } = useAppContext();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [selectedYears, setSelectedYears] = useState<number[]>([new Date().getFullYear()]);
   const [month, setMonth] = useState<number | 'all'>('all');
   const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>('all');
   
@@ -37,11 +37,11 @@ const MainApp: React.FC = () => {
     return allTransactions.filter(t => {
       const transactionYear = new Date(t.date).getFullYear();
       const transactionMonth = new Date(t.date).getMonth();
-      if (transactionYear !== year) return false;
+      if (!selectedYears.includes(transactionYear)) return false;
       if (month !== 'all' && transactionMonth !== month) return false;
       return true;
     });
-  }, [allTransactions, year, month]);
+  }, [allTransactions, selectedYears, month]);
 
   const filteredTransactions = useMemo(() => {
     if (selectedAccountId === 'all') {
@@ -50,12 +50,30 @@ const MainApp: React.FC = () => {
     return filteredTransactionsByDate.filter(t => t.accountId === selectedAccountId);
   }, [filteredTransactionsByDate, selectedAccountId]);
 
-  const years = useMemo(() => {
-    const transactionYears = Array.from(new Set(allTransactions.map(t => new Date(t.date).getFullYear()))).sort((a, b) => Number(b) - Number(a));
-    return transactionYears.length > 0 ? transactionYears : [new Date().getFullYear()];
+  const availableYears = useMemo(() => {
+    const transactionYears = Array.from(new Set(allTransactions.map(t => new Date(t.date).getFullYear()))).sort((a, b) => b - a);
+    const currentYear = new Date().getFullYear();
+    if (!transactionYears.includes(currentYear)) {
+        transactionYears.push(currentYear);
+        transactionYears.sort((a, b) => b - a);
+    }
+    return transactionYears;
   }, [allTransactions]);
 
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+  const handleYearToggle = (yearToToggle: number) => {
+    setSelectedYears(prev => {
+        const isSelected = prev.includes(yearToToggle);
+        if (isSelected) {
+            // Prevent deselecting the last remaining year
+            if (prev.length === 1) return prev;
+            return prev.filter(y => y !== yearToToggle);
+        } else {
+            return [...prev, yearToToggle].sort((a, b) => b - a);
+        }
+    });
+  };
 
   const renderContent = () => {
     switch(activeTab) {
@@ -68,7 +86,7 @@ const MainApp: React.FC = () => {
         case 'comparacion':
             return <AccountComparisonView transactions={filteredTransactionsByDate} />;
         case 'analisis':
-            return <BudgetsView transactions={filteredTransactions} month={month} />;
+            return <BudgetsView selectedYears={selectedYears} month={month} />;
         case 'buscador':
             return <SearchView />;
         case 'backup':
@@ -107,7 +125,11 @@ const MainApp: React.FC = () => {
         {showFilters && (
           <div className="mb-6 flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
-                {years.map(y => <button key={y} onClick={() => setYear(y)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${year === y ? 'bg-violet-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>{y}</button>)}
+                {availableYears.map(y => (
+                    <button key={y} onClick={() => handleYearToggle(y)} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${selectedYears.includes(y) ? 'bg-violet-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>
+                        {y}
+                    </button>
+                ))}
             </div>
             <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                 <button onClick={() => setMonth('all')} className={`px-3 py-1 text-sm font-semibold rounded-full transition-all duration-200 ${month === 'all' ? 'bg-pink-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-gray-300'}`}>Anual</button>
