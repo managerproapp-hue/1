@@ -205,23 +205,29 @@ export const AppProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const idsToUpdate = new Set(transactionIds);
         let updatedCount = 0;
 
-        // Sort rules by keyword length, descending. This makes more specific rules run first.
         const sortedRules = [...automationRules].sort((a, b) => b.keyword.length - a.keyword.length);
 
         const updatedTransactions = allTransactions.map(t => {
-            if (idsToUpdate.has(t.id)) {
-                for (const rule of sortedRules) {
-                    if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
-                        if (t.categoryId !== rule.categoryId) {
-                            updatedCount++;
-                            return { ...t, categoryId: rule.categoryId, automatedByRuleId: rule.id };
-                        }
-                        break; // Stop at the first (most specific) match
-                    }
+            if (!idsToUpdate.has(t.id)) {
+                return t;
+            }
+
+            let bestMatchRule: AutomationRule | null = null;
+            for (const rule of sortedRules) {
+                if (t.type === rule.type && t.description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                    bestMatchRule = rule;
+                    break; // Found the most specific rule, stop searching.
                 }
             }
-            return t; 
+
+            if (bestMatchRule && t.categoryId !== bestMatchRule.categoryId) {
+                updatedCount++;
+                return { ...t, categoryId: bestMatchRule.categoryId, automatedByRuleId: bestMatchRule.id };
+            }
+
+            return t; // No applicable rule found or category is already correct
         });
+        
         setAllTransactions(updatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
         return { updatedCount };
     }, [allTransactions, automationRules]);
